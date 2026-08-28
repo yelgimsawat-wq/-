@@ -31,7 +31,7 @@ namespace MagicDrawing
 
         [Header("การวาด")]
         [Tooltip("ระยะห่างขั้นต่ำระหว่างจุด (0..1) ยิ่งมากยิ่งเก็บจุดน้อย")]
-        [SerializeField] private float minPointDistance = 0.03f;
+        [SerializeField] private float minPointDistance = 0.012f;
 
         [Tooltip("สีเส้นตัวละคร")]
         [SerializeField] private Color inkColor = Color.white;
@@ -95,10 +95,19 @@ namespace MagicDrawing
                 return false;
             }
 
+            // ใช้จัตุรัสที่อยู่กึ่งกลางกรอบ ไม่ใช่ยืดเต็มกรอบ
+            //
+            // เพราะกรอบที่เห็นบนจอมักไม่ใช่จัตุรัส (จัดวางด้วย layout ให้เต็มความกว้าง)
+            // แต่ปลายทางเป็นภาพจัตุรัส ถ้ายืดเต็มกรอบ วาดวงกลมจะได้วงรี
+            // ผู้เล่นวาดอย่างหนึ่งแล้วเข้าเกมเห็นอีกอย่าง
             Rect rect = drawArea.rect;
+            float side = Mathf.Min(rect.width, rect.height);
+            float originX = rect.xMin + (rect.width - side) * 0.5f;
+            float originY = rect.yMin + (rect.height - side) * 0.5f;
+
             normalized = new Vector2(
-                (local.x - rect.xMin) / rect.width,
-                (local.y - rect.yMin) / rect.height);
+                (local.x - originX) / side,
+                (local.y - originY) / side);
 
             return normalized.x >= 0f && normalized.x <= 1f
                 && normalized.y >= 0f && normalized.y <= 1f;

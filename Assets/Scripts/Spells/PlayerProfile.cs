@@ -1,5 +1,5 @@
+using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Text;
 using UnityEngine;
 
@@ -25,8 +25,8 @@ namespace MagicDrawing
         private const string AppearanceKey = "MagicDrawing.Appearance";
 
         /// <summary>เพดานที่ต้องไม่เกิน ไม่งั้นส่งข้ามเน็ตแล้วทะลุขนาดข้อความ</summary>
-        public const int MaxStrokes = 10;
-        public const int MaxPointsPerStroke = 20;
+        public const int MaxStrokes = 24;
+        public const int MaxPointsPerStroke = 48;
         public const int MaxNameLength = 12;
 
         public static string Name
@@ -90,39 +90,50 @@ namespace MagicDrawing
         }
 
         /// <summary>
-        /// แปลงชุดเส้นเป็นข้อความสั้น ๆ
+        /// แปลงชุดเส้นเป็นข้อความสั้นที่สุดเท่าที่ทำได้
         ///
-        /// รูปแบบ: ขีดคั่นด้วย ; จุดคั่นด้วย | และ x,y คั่นด้วย ,
-        /// ปัดเหลือทศนิยม 3 ตำแหน่งพอ เพราะพิกัดเป็น 0..1 อยู่แล้ว
-        /// ละเอียดกว่านั้นตาก็มองไม่ออกแต่ข้อความยาวขึ้นเท่าตัว
+        /// เดิมเก็บเป็นตัวเลขทศนิยมคั่นด้วยจุลภาค กินราว 12 ตัวอักษรต่อจุด
+        /// ทำให้วาดได้แค่ 10 เส้น เส้นละ 20 จุด ก่อนจะทะลุช่องส่งข้ามเน็ต
+        /// ซึ่งน้อยเกินกว่าจะวาดตัวละครให้ดูดีได้
         ///
-        /// ไม่ใช้ JSON เพราะยาวกว่าสามเท่าโดยไม่ได้อะไรเพิ่ม
+        /// เปลี่ยนมาเก็บพิกัดเป็นไบต์ (0-255) แล้วแปลงเป็น Base64
+        /// เหลือราว 2.7 ตัวอักษรต่อจุด ประหยัดลงกว่าสี่เท่า
+        /// วาดได้ 24 เส้น เส้นละ 48 จุด
+        ///
+        /// ความละเอียด 1/255 ของกรอบ คิดเป็นครึ่งพิกเซลบนภาพ 128 พิกเซล
+        /// ตาแยกไม่ออกอยู่แล้ว
+        ///
+        /// รูปแบบ: [จำนวนเส้น][จำนวนจุด][x][y][x][y]...[จำนวนจุด][x][y]...
         /// </summary>
         public static string Encode(IReadOnlyList<Vector2[]> strokes)
         {
             if (strokes == null || strokes.Count == 0) return "";
 
-            var builder = new StringBuilder();
+            var bytes = new List<byte>();
+
             int strokeCount = Mathf.Min(strokes.Count, MaxStrokes);
+            var usable = new List<Vector2[]>(strokeCount);
 
-            for (int s = 0; s < strokeCount; s++)
+            for (int i = 0; i < strokeCount; i++)
+                if (strokes[i] != null && strokes[i].Length >= 2) usable.Add(strokes[i]);
+
+            if (usable.Count == 0) return "";
+
+            bytes.Add((byte)usable.Count);
+
+            foreach (Vector2[] stroke in usable)
             {
-                Vector2[] stroke = strokes[s];
-                if (stroke == null || stroke.Length < 2) continue;
-
-                if (builder.Length > 0) builder.Append(';');
-
                 int pointCount = Mathf.Min(stroke.Length, MaxPointsPerStroke);
+                bytes.Add((byte)pointCount);
+
                 for (int p = 0; p < pointCount; p++)
                 {
-                    if (p > 0) builder.Append('|');
-                    builder.Append(stroke[p].x.ToString("F3", CultureInfo.InvariantCulture));
-                    builder.Append(',');
-                    builder.Append(stroke[p].y.ToString("F3", CultureInfo.InvariantCulture));
+                    bytes.Add(ToByte(stroke[p].x));
+                    bytes.Add(ToByte(stroke[p].y));
                 }
             }
 
-            return builder.ToString();
+            return Convert.ToBase64String(bytes.ToArray());
         }
 
         public static List<Vector2[]> Decode(string encoded)
@@ -130,28 +141,53 @@ namespace MagicDrawing
             var result = new List<Vector2[]>();
             if (string.IsNullOrEmpty(encoded)) return result;
 
-            foreach (string strokeText in encoded.Split(';'))
+            byte[] bytes;
+            try
             {
-                string[] pointTexts = strokeText.Split('|');
-                if (pointTexts.Length < 2) continue;
+                bytes = Convert.FromBase64String(encoded);
+            }
+            catch (FormatException)
+            {
+                // ข้อมูลเสียหรือมาจากเวอร์ชันเก่าคนละรูปแบบ ทิ้งไปดีกว่าทำเกมพัง
+                return result;
+            }
 
-                var points = new List<Vector2>(pointTexts.Length);
-                foreach (string pointText in pointTexts)
+            int index = 0;
+            if (bytes.Length < 1) return result;
+
+            int strokeCount = bytes[index++];
+
+            for (int s = 0; s < strokeCount; s++)
+            {
+                if (index >= bytes.Length) break;
+
+                int pointCount = bytes[index++];
+                if (pointCount < 2) { index += pointCount * 2; continue; }
+
+                // ข้อมูลขาดกลางทาง หยุดตรงนี้แทนที่จะอ่านทะลุขอบ
+                if (index + pointCount * 2 > bytes.Length) break;
+
+                var points = new Vector2[pointCount];
+                for (int p = 0; p < pointCount; p++)
                 {
-                    string[] parts = pointText.Split(',');
-                    if (parts.Length != 2) continue;
-
-                    if (float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out float x)
-                        && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float y))
-                    {
-                        points.Add(new Vector2(x, y));
-                    }
+                    points[p] = new Vector2(FromByte(bytes[index]), FromByte(bytes[index + 1]));
+                    index += 2;
                 }
 
-                if (points.Count >= 2) result.Add(points.ToArray());
+                result.Add(points);
             }
 
             return result;
+        }
+
+        private static byte ToByte(float value)
+        {
+            return (byte)Mathf.RoundToInt(Mathf.Clamp01(value) * 255f);
+        }
+
+        private static float FromByte(byte value)
+        {
+            return value / 255f;
         }
 
         // ---------- กฎเรื่องขนาด ----------

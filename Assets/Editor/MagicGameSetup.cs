@@ -454,15 +454,26 @@ public static class MagicGameSetup
 
         CreateText(panel.transform, "DrawCaption", "วาดตัวละครของคุณ", 20, TextColor);
 
-        // กรอบวาดเป็นสี่เหลี่ยมจัตุรัส เพราะพิกัดที่เก็บเป็น 0..1 ทั้งสองแกน
-        // ถ้ากรอบไม่จัตุรัส รูปจะยืดผิดสัดส่วนตอนเอาไปใช้จริง
-        var areaGo = new GameObject("DrawArea", typeof(Image));
-        areaGo.transform.SetParent(panel.transform, false);
+        // กรอบวาดต้องเป็นจัตุรัส เพราะปลายทางเป็นภาพจัตุรัส
+        // ถ้าปล่อยให้ยืดเต็มความกว้างของการ์ด วาดวงกลมจะได้วงรี
+        //
+        // ตัวนอกเป็นแค่ที่จองพื้นที่ให้ layout ส่วนจัตุรัสจริงอยู่ข้างใน
+        // ใช้ AspectRatioFitter บังคับให้เป็นจัตุรัสและอยู่กึ่งกลางเสมอ
+        // ไม่ว่าการ์ดจะกว้างแค่ไหน
+        var slotGo = new GameObject("DrawSlot", typeof(RectTransform));
+        slotGo.transform.SetParent(panel.transform, false);
+
+        var slotElement = slotGo.AddComponent<LayoutElement>();
+        slotElement.minHeight = 420f;
+        slotElement.preferredHeight = 420f;
+
+        var areaGo = new GameObject("DrawArea", typeof(Image), typeof(AspectRatioFitter));
+        areaGo.transform.SetParent(slotGo.transform, false);
         areaGo.GetComponent<Image>().color = new Color(0.13f, 0.15f, 0.22f);
 
-        var areaElement = areaGo.AddComponent<LayoutElement>();
-        areaElement.minHeight = 380f;
-        areaElement.preferredHeight = 380f;
+        var fitter = areaGo.GetComponent<AspectRatioFitter>();
+        fitter.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+        fitter.aspectRatio = 1f;
 
         var previewGo = new GameObject("Preview", typeof(RawImage));
         previewGo.transform.SetParent(areaGo.transform, false);
