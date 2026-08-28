@@ -444,7 +444,7 @@ public static class MagicGameSetup
     /// </summary>
     private static GameObject CreateProfilePanel(Transform canvas, OnlineUI2D ui)
     {
-        GameObject panel = CreatePanel(canvas, "ProfilePanel", new Vector2(620f, 840f));
+        GameObject panel = CreatePanel(canvas, "ProfilePanel", new Vector2(760f, 990f));
 
         CreateText(panel.transform, "Title", "ตั้งค่าตัวละคร", 40, AccentColor, FontStyle.Bold);
         CreateText(panel.transform, "NameCaption", "ชื่อของคุณ", 20, TextColor);
@@ -464,8 +464,10 @@ public static class MagicGameSetup
         slotGo.transform.SetParent(panel.transform, false);
 
         var slotElement = slotGo.AddComponent<LayoutElement>();
-        slotElement.minHeight = 420f;
-        slotElement.preferredHeight = 420f;
+        // กระดานยิ่งใหญ่ยิ่งวาดง่าย จำกัดด้วยความสูงจอที่อ้างอิงไว้ 1080
+        // การ์ดสูง 990 เหลือขอบบนล่างข้างละ 45 พอดี
+        slotElement.minHeight = 540f;
+        slotElement.preferredHeight = 540f;
 
         var areaGo = new GameObject("DrawArea", typeof(Image), typeof(AspectRatioFitter));
         areaGo.transform.SetParent(slotGo.transform, false);

@@ -16,7 +16,68 @@ namespace MagicDrawing
     public static class AppearanceRenderer
     {
         /// <summary>ขนาดภาพที่อบออกมา กำลังพอดีระหว่างความคมกับหน่วยความจำ</summary>
-        public const int TextureSize = 128;
+        public const int TextureSize = 256;
+
+        /// <summary>
+        /// ความหนาเส้นเทียบกับความกว้างภาพ (เป็นรัศมี ไม่ใช่เส้นผ่าศูนย์กลาง)
+        ///
+        /// เดิมตั้งไว้ 0.045 ซึ่งทำให้เส้นกว้าง 9% ของภาพ พอแสดงบนกระดานจริง
+        /// เส้นจะกว้างเกือบ 40 พิกเซล เคอร์เซอร์อยู่กลางก้อนอ้วน ๆ
+        /// ทำให้รู้สึกว่าวาดไม่ตรงกับตำแหน่งเมาส์
+        /// </summary>
+        public const float DefaultThicknessRatio = 0.012f;
+
+        // ใช้บัฟเฟอร์เดิมซ้ำ ไม่จองใหม่ทุกครั้งที่วาด
+        // ภาพ 256x256 คือ 65,536 ช่อง ถ้าจองใหม่ทุกจุดที่ลากเมาส์
+        // ตัวเก็บขยะจะทำงานถี่จนเห็นเป็นอาการกระตุก
+        private static Color32[] scratch;
+        private static int scratchSize;
+
+        /// <summary>
+        /// วาดลงเท็กซ์เจอร์ที่มีอยู่แล้ว ไม่สร้างใบใหม่
+        /// ใช้ตอนวาดสด ๆ ที่ต้องอัปเดตหลายสิบครั้งต่อวินาที
+        /// </summary>
+        public static void BakeInto(
+            Texture2D target,
+            IReadOnlyList<Vector2[]> strokes,
+            Color color,
+            float thicknessRatio = DefaultThicknessRatio)
+        {
+            if (target == null) return;
+
+            int size = target.width;
+            if (scratch == null || scratchSize != size)
+            {
+                scratch = new Color32[size * size];
+                scratchSize = size;
+            }
+
+            var clear = new Color32(0, 0, 0, 0);
+            for (int i = 0; i < scratch.Length; i++) scratch[i] = clear;
+
+            PaintStrokes(scratch, size, strokes, color, thicknessRatio);
+
+            target.SetPixels32(scratch);
+            target.Apply();
+        }
+
+        private static void PaintStrokes(
+            Color32[] pixels, int size,
+            IReadOnlyList<Vector2[]> strokes, Color color, float thicknessRatio)
+        {
+            if (strokes == null) return;
+
+            float radius = Mathf.Max(1f, size * thicknessRatio);
+            var brush = (Color32)color;
+
+            foreach (Vector2[] stroke in strokes)
+            {
+                if (stroke == null || stroke.Length < 2) continue;
+
+                for (int i = 1; i < stroke.Length; i++)
+                    DrawSegment(pixels, size, stroke[i - 1], stroke[i], radius, brush);
+            }
+        }
 
         /// <summary>
         /// อบชุดเส้นเป็น Texture2D
@@ -26,7 +87,7 @@ namespace MagicDrawing
             IReadOnlyList<Vector2[]> strokes,
             Color color,
             int size = TextureSize,
-            float thicknessRatio = 0.045f)
+            float thicknessRatio = DefaultThicknessRatio)
         {
             var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
             {
@@ -34,26 +95,7 @@ namespace MagicDrawing
                 wrapMode = TextureWrapMode.Clamp,
             };
 
-            var pixels = new Color32[size * size];
-            // เริ่มจากโปร่งใสทั้งหมด แล้วค่อยแต้มเส้นทับ
-            for (int i = 0; i < pixels.Length; i++) pixels[i] = new Color32(0, 0, 0, 0);
-
-            if (strokes != null)
-            {
-                float radius = Mathf.Max(1f, size * thicknessRatio);
-                var brush = (Color32)color;
-
-                foreach (Vector2[] stroke in strokes)
-                {
-                    if (stroke == null || stroke.Length < 2) continue;
-
-                    for (int i = 1; i < stroke.Length; i++)
-                        DrawSegment(pixels, size, stroke[i - 1], stroke[i], radius, brush);
-                }
-            }
-
-            texture.SetPixels32(pixels);
-            texture.Apply();
+            BakeInto(texture, strokes, color, thicknessRatio);
             return texture;
         }
 

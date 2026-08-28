@@ -36,11 +36,16 @@ namespace MagicDrawing
         [Tooltip("สีเส้นตัวละคร")]
         [SerializeField] private Color inkColor = Color.white;
 
+        [Tooltip("ความหนาเส้นเทียบกับความกว้างภาพ ยิ่งน้อยยิ่งบาง")]
+        [Range(0.004f, 0.05f)]
+        [SerializeField] private float lineThickness = AppearanceRenderer.DefaultThicknessRatio;
+
         private readonly List<Vector2[]> strokes = new List<Vector2[]>();
         private readonly List<Vector2> currentStroke = new List<Vector2>();
 
         private Texture2D previewTexture;
         private bool isDrawing;
+        private bool needsRedraw;
 
         /// <summary>ชุดเส้นที่วาดไว้ตอนนี้</summary>
         public IReadOnlyList<Vector2[]> Strokes => strokes;
@@ -174,15 +179,51 @@ namespace MagicDrawing
 
         // ---------- แสดงผล ----------
 
+        /// <summary>
+        /// ขอให้วาดใหม่ ยังไม่วาดทันที
+        ///
+        /// เดิมวาดทันทีทุกครั้งที่เก็บจุดได้ ซึ่งหมายถึงทิ้งเท็กซ์เจอร์เก่า
+        /// สร้างใบใหม่ ไล่แต้มเส้นทั้งหมดตั้งแต่ต้น แล้วอัปโหลดขึ้นการ์ดจอ
+        /// เกิดขึ้นทุกไม่กี่พิกเซลที่ลากเมาส์ จึงกระตุก
+        ///
+        /// ตอนนี้แค่ปักธงไว้ แล้วให้ LateUpdate วาดครั้งเดียวจบต่อเฟรม
+        /// ลากเร็วแค่ไหนก็วาดไม่เกิน 60 ครั้งต่อวินาที
+        /// </summary>
         private void Redraw()
+        {
+            needsRedraw = true;
+        }
+
+        private void LateUpdate()
+        {
+            if (!needsRedraw) return;
+            needsRedraw = false;
+
+            RebuildPreview();
+        }
+
+        private void RebuildPreview()
         {
             var all = new List<Vector2[]>(strokes);
             if (currentStroke.Count >= 2) all.Add(currentStroke.ToArray());
 
-            if (previewTexture != null) Destroy(previewTexture);
-            previewTexture = AppearanceRenderer.BakeTexture(all, inkColor);
+            if (previewTexture == null)
+            {
+                previewTexture = new Texture2D(
+                    AppearanceRenderer.TextureSize,
+                    AppearanceRenderer.TextureSize,
+                    TextureFormat.RGBA32,
+                    false)
+                {
+                    filterMode = FilterMode.Bilinear,
+                    wrapMode = TextureWrapMode.Clamp,
+                };
 
-            if (preview != null) preview.texture = previewTexture;
+                if (preview != null) preview.texture = previewTexture;
+            }
+
+            // วาดทับใบเดิม ไม่สร้างใบใหม่
+            AppearanceRenderer.BakeInto(previewTexture, all, inkColor, lineThickness);
 
             UpdateSizeHint(all);
         }
