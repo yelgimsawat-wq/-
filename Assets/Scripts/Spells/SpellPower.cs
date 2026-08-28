@@ -43,11 +43,43 @@ namespace MagicDrawing
 
         private SpellCaster caster;
 
-        /// <summary>ความแรงตอนนี้ 0 = เงียบ, 1 = ดังเต็มที่</summary>
-        public float CurrentPower => micReady ? smoothedPower : fallbackPower;
+        private bool externalSource;
+        private float rawLoudness;
 
-        /// <summary>เปิดไมค์ได้หรือเปล่า เอาไว้บอกผู้เล่นบนจอ</summary>
-        public bool MicrophoneReady => micReady;
+        /// <summary>ความแรงตอนนี้ 0 = เงียบ, 1 = ดังเต็มที่</summary>
+        public float CurrentPower => HasAudioSource ? smoothedPower : fallbackPower;
+
+        /// <summary>มีแหล่งเสียงให้อ่านไหม ไม่ว่าจะจากไมค์เองหรือจากระบบ voice chat</summary>
+        public bool HasAudioSource => micReady || externalSource;
+
+        /// <summary>
+        /// บอกว่าจะมีคนป้อนเสียงให้ ไม่ต้องเปิดไมค์เอง
+        ///
+        /// ต้องเรียกใน Awake ของตัวป้อน เพราะ Awake ของทุก component ทำงานก่อน
+        /// Start ทั้งหมด ค่านี้จึงถูกตั้งทันก่อนที่ Start ตรงนี้จะไปเปิดไมค์
+        ///
+        /// จำเป็นมาก เพราะถ้าทั้ง voice chat และตัวนี้เปิดไมค์ตัวเดียวกันพร้อมกัน
+        /// จะแย่งอุปกรณ์กันจนพังทั้งคู่
+        /// </summary>
+        public void UseExternalSource()
+        {
+            externalSource = true;
+        }
+
+        /// <summary>
+        /// รับตัวอย่างเสียงดิบจากระบบ voice chat มาคิดความดัง
+        /// ใช้สตรีมเดียวกับที่ส่งให้เพื่อนได้ยิน ความแรงเวทจึงตรงกับเสียงที่พูดจริง
+        /// </summary>
+        public void FeedExternalSamples(float[] samples)
+        {
+            if (samples == null || samples.Length == 0) return;
+
+            float sum = 0f;
+            foreach (float sample in samples)
+                sum += sample * sample;
+
+            rawLoudness = Mathf.Sqrt(sum / samples.Length);
+        }
 
         private void Awake()
         {
@@ -58,6 +90,9 @@ namespace MagicDrawing
         {
             // ตัวละครของคนอื่นไม่ต้องเปิดไมค์ เปลืองเปล่า ๆ และอาจชนกันเองด้วย
             if (caster != null && !caster.IsOwner) return;
+
+            // มีระบบ voice chat ป้อนเสียงให้แล้ว ห้ามเปิดไมค์ซ้ำ จะแย่งอุปกรณ์กัน
+            if (externalSource) return;
 
             StartMicrophone();
         }
@@ -91,9 +126,10 @@ namespace MagicDrawing
 
         private void Update()
         {
-            if (!micReady) return;
+            if (!HasAudioSource) return;
 
-            float loudness = ReadLoudness();
+            // เสียงมาจากสองทางได้ ไมค์ที่เราเปิดเอง หรือระบบ voice chat ป้อนมาให้
+            float loudness = externalSource ? rawLoudness : ReadLoudness();
             float target = Mathf.Clamp01((loudness - noiseFloor) * sensitivity);
 
             // ค่าดิบจากไมค์กระโดดแรงมากทุกเฟรม ต้องหน่วงก่อนไม่งั้นหลอดจะสั่น
@@ -134,8 +170,8 @@ namespace MagicDrawing
             var box = new Rect(Screen.width - 190f, 16f, 174f, 54f);
             GUI.Box(box, GUIContent.none);
 
-            string label = micReady
-                ? $"เสียง {CurrentPower:P0}"
+            string label = HasAudioSource
+                ? (externalSource ? $"เสียง {CurrentPower:P0} (voice chat)" : $"เสียง {CurrentPower:P0}")
                 : "ไม่มีไมค์ (ใช้ค่าคงที่)";
 
             GUI.Label(new Rect(box.x + 8f, box.y + 4f, box.width - 16f, 20f), label);
