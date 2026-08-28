@@ -18,76 +18,45 @@ namespace MagicDrawing
         /// <summary>ขนาดภาพที่อบออกมา กำลังพอดีระหว่างความคมกับหน่วยความจำ</summary>
         public const int TextureSize = 256;
 
-        /// <summary>
-        /// ความหนาเส้นเทียบกับความกว้างภาพ (เป็นรัศมี ไม่ใช่เส้นผ่าศูนย์กลาง)
-        ///
-        /// เดิมตั้งไว้ 0.045 ซึ่งทำให้เส้นกว้าง 9% ของภาพ พอแสดงบนกระดานจริง
-        /// เส้นจะกว้างเกือบ 40 พิกเซล เคอร์เซอร์อยู่กลางก้อนอ้วน ๆ
-        /// ทำให้รู้สึกว่าวาดไม่ตรงกับตำแหน่งเมาส์
-        /// </summary>
+        /// <summary>ความหนาเส้นเริ่มต้น เทียบกับความกว้างภาพ (เป็นรัศมี)</summary>
         public const float DefaultThicknessRatio = 0.012f;
 
         // ใช้บัฟเฟอร์เดิมซ้ำ ไม่จองใหม่ทุกครั้งที่วาด
         // ภาพ 256x256 คือ 65,536 ช่อง ถ้าจองใหม่ทุกจุดที่ลากเมาส์
         // ตัวเก็บขยะจะทำงานถี่จนเห็นเป็นอาการกระตุก
-        private static Color32[] scratch;
-        private static int scratchSize;
+        private static Color32[] canvas;
+
+        // ที่พักของเส้นทีละเส้น เก็บแค่ความเข้ม ไม่เก็บสี
+        // เพราะทั้งเส้นใช้สีเดียวกันอยู่แล้ว ประหยัดหน่วยความจำสี่เท่า
+        private static byte[] coverage;
+
+        private static int bufferSize;
 
         /// <summary>
         /// วาดลงเท็กซ์เจอร์ที่มีอยู่แล้ว ไม่สร้างใบใหม่
         /// ใช้ตอนวาดสด ๆ ที่ต้องอัปเดตหลายสิบครั้งต่อวินาที
         /// </summary>
-        public static void BakeInto(
-            Texture2D target,
-            IReadOnlyList<Vector2[]> strokes,
-            Color color,
-            float thicknessRatio = DefaultThicknessRatio)
+        public static void BakeInto(Texture2D target, IReadOnlyList<AppearanceStroke> strokes)
         {
             if (target == null) return;
 
             int size = target.width;
-            if (scratch == null || scratchSize != size)
-            {
-                scratch = new Color32[size * size];
-                scratchSize = size;
-            }
+            EnsureBuffers(size);
 
             var clear = new Color32(0, 0, 0, 0);
-            for (int i = 0; i < scratch.Length; i++) scratch[i] = clear;
+            for (int i = 0; i < canvas.Length; i++) canvas[i] = clear;
 
-            PaintStrokes(scratch, size, strokes, color, thicknessRatio);
+            if (strokes != null)
+            {
+                foreach (AppearanceStroke stroke in strokes)
+                    if (stroke.IsValid) PaintStroke(size, stroke);
+            }
 
-            target.SetPixels32(scratch);
+            target.SetPixels32(canvas);
             target.Apply();
         }
 
-        private static void PaintStrokes(
-            Color32[] pixels, int size,
-            IReadOnlyList<Vector2[]> strokes, Color color, float thicknessRatio)
-        {
-            if (strokes == null) return;
-
-            float radius = Mathf.Max(1f, size * thicknessRatio);
-            var brush = (Color32)color;
-
-            foreach (Vector2[] stroke in strokes)
-            {
-                if (stroke == null || stroke.Length < 2) continue;
-
-                for (int i = 1; i < stroke.Length; i++)
-                    DrawSegment(pixels, size, stroke[i - 1], stroke[i], radius, brush);
-            }
-        }
-
-        /// <summary>
-        /// อบชุดเส้นเป็น Texture2D
-        /// พิกัดที่รับเข้ามาเป็น 0..1 โดย (0,0) อยู่มุมล่างซ้าย
-        /// </summary>
-        public static Texture2D BakeTexture(
-            IReadOnlyList<Vector2[]> strokes,
-            Color color,
-            int size = TextureSize,
-            float thicknessRatio = DefaultThicknessRatio)
+        public static Texture2D BakeTexture(IReadOnlyList<AppearanceStroke> strokes, int size = TextureSize)
         {
             var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
             {
@@ -95,17 +64,16 @@ namespace MagicDrawing
                 wrapMode = TextureWrapMode.Clamp,
             };
 
-            BakeInto(texture, strokes, color, thicknessRatio);
+            BakeInto(texture, strokes);
             return texture;
         }
 
         public static Sprite BakeSprite(
-            IReadOnlyList<Vector2[]> strokes,
-            Color color,
+            IReadOnlyList<AppearanceStroke> strokes,
             float pixelsPerUnit,
             int size = TextureSize)
         {
-            Texture2D texture = BakeTexture(strokes, color, size);
+            Texture2D texture = BakeTexture(strokes, size);
 
             return Sprite.Create(
                 texture,
@@ -114,15 +82,114 @@ namespace MagicDrawing
                 pixelsPerUnit);
         }
 
+        private static void EnsureBuffers(int size)
+        {
+            if (canvas != null && bufferSize == size) return;
+
+            canvas = new Color32[size * size];
+            coverage = new byte[size * size];
+            bufferSize = size;
+        }
+
         /// <summary>
-        /// แต้มเส้นตรงหนึ่งช่วงลงบนพิกเซล
+        /// วาดหนึ่งเส้นแล้วผสมลงภาพรวม
         ///
-        /// เดินไปตามเส้นแล้วแต้มวงกลมทีละจุด แทนการใช้อัลกอริทึมวาดเส้นบาง
-        /// เพราะเราต้องการเส้นหนาที่ปลายมนและต่อกันเนียน ซึ่งวิธีนี้ได้ฟรี
+        /// ต้องวาดลงที่พักก่อนแล้วค่อยผสม ไม่ใช่แต้มลงภาพรวมตรง ๆ เพราะ
+        /// การแต้มหนึ่งเส้นคือการวางวงกลมซ้อนกันถี่ ๆ ตลอดแนว ถ้าผสมทุกครั้ง
+        /// ที่วาง ขอบเส้นจะทึบขึ้นเรื่อย ๆ จนดูหนากว่าที่ตั้งไว้และขอบแข็ง
+        ///
+        /// ที่พักใช้กฎ "เอาค่าที่เข้มกว่า" ซึ่งให้ขอบเนียน แล้วค่อยผสมทั้งเส้น
+        /// ลงภาพรวมครั้งเดียว เส้นที่วาดทีหลังจึงทับเส้นเก่าได้ถูกต้องเมื่อคนละสี
+        /// </summary>
+        private static void PaintStroke(int size, AppearanceStroke stroke)
+        {
+            float radius = Mathf.Max(1f, size * stroke.Thickness);
+
+            // ล้างและผสมเฉพาะบริเวณที่เส้นนี้กินพื้นที่ ไม่ต้องกวาดทั้งภาพ
+            // เส้นหนึ่งเส้นมักกินไม่ถึงหนึ่งในสิบของภาพ ประหยัดไปมาก
+            GetPixelBounds(stroke.Points, size, radius,
+                out int minX, out int minY, out int maxX, out int maxY);
+
+            for (int y = minY; y <= maxY; y++)
+            {
+                int row = y * size;
+                for (int x = minX; x <= maxX; x++) coverage[row + x] = 0;
+            }
+
+            for (int i = 1; i < stroke.Points.Length; i++)
+                DrawSegment(size, stroke.Points[i - 1], stroke.Points[i], radius);
+
+            Composite(size, stroke.Color, minX, minY, maxX, maxY);
+        }
+
+        private static void GetPixelBounds(
+            Vector2[] points, int size, float radius,
+            out int minX, out int minY, out int maxX, out int maxY)
+        {
+            float lowX = float.MaxValue, lowY = float.MaxValue;
+            float highX = float.MinValue, highY = float.MinValue;
+
+            foreach (Vector2 p in points)
+            {
+                if (p.x < lowX) lowX = p.x;
+                if (p.x > highX) highX = p.x;
+                if (p.y < lowY) lowY = p.y;
+                if (p.y > highY) highY = p.y;
+            }
+
+            int margin = Mathf.CeilToInt(radius) + 1;
+
+            minX = Mathf.Clamp(Mathf.FloorToInt(lowX * size) - margin, 0, size - 1);
+            minY = Mathf.Clamp(Mathf.FloorToInt(lowY * size) - margin, 0, size - 1);
+            maxX = Mathf.Clamp(Mathf.CeilToInt(highX * size) + margin, 0, size - 1);
+            maxY = Mathf.Clamp(Mathf.CeilToInt(highY * size) + margin, 0, size - 1);
+        }
+
+        /// <summary>ผสมเส้นที่อยู่ในที่พักลงภาพรวม แบบวางทับตามความเข้ม</summary>
+        private static void Composite(int size, Color color, int minX, int minY, int maxX, int maxY)
+        {
+            byte r = (byte)Mathf.RoundToInt(Mathf.Clamp01(color.r) * 255f);
+            byte g = (byte)Mathf.RoundToInt(Mathf.Clamp01(color.g) * 255f);
+            byte b = (byte)Mathf.RoundToInt(Mathf.Clamp01(color.b) * 255f);
+
+            for (int y = minY; y <= maxY; y++)
+            {
+                int row = y * size;
+                for (int x = minX; x <= maxX; x++)
+                {
+                    int index = row + x;
+
+                    int src = coverage[index];
+                    if (src == 0) continue;
+
+                    Color32 dst = canvas[index];
+
+                    if (src == 255 || dst.a == 0)
+                    {
+                        // ทึบเต็มหรือข้างล่างว่าง ทับไปเลยไม่ต้องคำนวณ
+                        canvas[index] = new Color32(r, g, b, (byte)Mathf.Max(src, (int)dst.a));
+                        continue;
+                    }
+
+                    // สูตรวางทับมาตรฐาน ปลายทาง = ของใหม่ + ของเดิมที่เหลือรอด
+                    int keep = dst.a * (255 - src) / 255;
+                    int outA = src + keep;
+                    if (outA <= 0) continue;
+
+                    canvas[index] = new Color32(
+                        (byte)((r * src + dst.r * keep) / outA),
+                        (byte)((g * src + dst.g * keep) / outA),
+                        (byte)((b * src + dst.b * keep) / outA),
+                        (byte)outA);
+                }
+            }
+        }
+
+        /// <summary>
+        /// แต้มวงกลมถี่ ๆ ตลอดแนวจากจุดหนึ่งไปอีกจุด
         /// จำนวนก้าวคิดจากความยาวช่วง เส้นสั้นจึงไม่เสียเวลาแต้มเกินจำเป็น
         /// </summary>
-        private static void DrawSegment(
-            Color32[] pixels, int size, Vector2 from, Vector2 to, float radius, Color32 color)
+        private static void DrawSegment(int size, Vector2 from, Vector2 to, float radius)
         {
             Vector2 a = from * size;
             Vector2 b = to * size;
@@ -131,13 +198,10 @@ namespace MagicDrawing
             int steps = Mathf.Max(1, Mathf.CeilToInt(distance));
 
             for (int i = 0; i <= steps; i++)
-            {
-                Vector2 p = Vector2.Lerp(a, b, (float)i / steps);
-                Stamp(pixels, size, p, radius, color);
-            }
+                Stamp(size, Vector2.Lerp(a, b, (float)i / steps), radius);
         }
 
-        private static void Stamp(Color32[] pixels, int size, Vector2 center, float radius, Color32 color)
+        private static void Stamp(int size, Vector2 center, float radius)
         {
             int minX = Mathf.Max(0, Mathf.FloorToInt(center.x - radius));
             int maxX = Mathf.Min(size - 1, Mathf.CeilToInt(center.x + radius));
@@ -146,6 +210,7 @@ namespace MagicDrawing
 
             for (int y = minY; y <= maxY; y++)
             {
+                int row = y * size;
                 for (int x = minX; x <= maxX; x++)
                 {
                     float dx = x + 0.5f - center.x;
@@ -154,14 +219,11 @@ namespace MagicDrawing
                     if (d > radius) continue;
 
                     // ไล่ขอบหนึ่งพิกเซล ให้เส้นไม่เป็นบันได
-                    float alpha = Mathf.Clamp01(radius - d);
+                    byte alpha = (byte)(Mathf.Clamp01(radius - d) * 255f);
 
-                    int index = y * size + x;
-                    // ทับเฉพาะตอนที่เข้มกว่าของเดิม ไม่งั้นจุดที่เส้นตัดกันจะจางลง
-                    byte newAlpha = (byte)(alpha * 255f);
-                    if (newAlpha <= pixels[index].a) continue;
-
-                    pixels[index] = new Color32(color.r, color.g, color.b, newAlpha);
+                    int index = row + x;
+                    // เอาค่าที่เข้มกว่า ไม่งั้นจุดที่วงกลมซ้อนกันจะทึบขึ้นเรื่อย ๆ
+                    if (alpha > coverage[index]) coverage[index] = alpha;
                 }
             }
         }

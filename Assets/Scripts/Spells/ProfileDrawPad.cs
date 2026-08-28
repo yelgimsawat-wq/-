@@ -33,14 +33,15 @@ namespace MagicDrawing
         [Tooltip("ระยะห่างขั้นต่ำระหว่างจุด (0..1) ยิ่งมากยิ่งเก็บจุดน้อย")]
         [SerializeField] private float minPointDistance = 0.012f;
 
-        [Tooltip("สีเส้นตัวละคร")]
-        [SerializeField] private Color inkColor = Color.white;
+        [Header("ปากกา")]
+        [Tooltip("สีที่ใช้วาดตอนนี้ เปลี่ยนกลางคันได้ เส้นเก่าคงสีเดิมไว้")]
+        [SerializeField] private Color penColor = Color.white;
 
-        [Tooltip("ความหนาเส้นเทียบกับความกว้างภาพ ยิ่งน้อยยิ่งบาง")]
-        [Range(0.004f, 0.05f)]
-        [SerializeField] private float lineThickness = AppearanceRenderer.DefaultThicknessRatio;
+        [Tooltip("ความหนาที่ใช้วาดตอนนี้ เทียบกับความกว้างภาพ")]
+        [Range(AppearanceStroke.MinThickness, AppearanceStroke.MaxThickness)]
+        [SerializeField] private float penThickness = AppearanceRenderer.DefaultThicknessRatio;
 
-        private readonly List<Vector2[]> strokes = new List<Vector2[]>();
+        private readonly List<AppearanceStroke> strokes = new List<AppearanceStroke>();
         private readonly List<Vector2> currentStroke = new List<Vector2>();
 
         private Texture2D previewTexture;
@@ -48,7 +49,29 @@ namespace MagicDrawing
         private bool needsRedraw;
 
         /// <summary>ชุดเส้นที่วาดไว้ตอนนี้</summary>
-        public IReadOnlyList<Vector2[]> Strokes => strokes;
+        public IReadOnlyList<AppearanceStroke> Strokes => strokes;
+
+        /// <summary>สีปากกาตอนนี้ ให้ UI อ่านไปแสดงว่าเลือกสีไหนอยู่</summary>
+        public Color PenColor => penColor;
+
+        /// <summary>ความหนาปากกาตอนนี้</summary>
+        public float PenThickness => penThickness;
+
+        /// <summary>
+        /// เปลี่ยนสีปากกา มีผลกับเส้นที่จะวาดต่อจากนี้เท่านั้น
+        /// เส้นที่วาดไปแล้วเก็บสีของตัวเองไว้ จึงวาดหลายสีในตัวเดียวได้
+        /// </summary>
+        public void SetPenColor(Color color)
+        {
+            penColor = color;
+        }
+
+        /// <summary>เปลี่ยนความหนาปากกา ผูกกับ Slider ได้ตรง ๆ</summary>
+        public void SetPenThickness(float thickness)
+        {
+            penThickness = Mathf.Clamp(
+                thickness, AppearanceStroke.MinThickness, AppearanceStroke.MaxThickness);
+        }
 
         /// <summary>
         /// ภาพที่วาดอยู่ตอนนี้ ให้ตัวอย่างตัวละครยืมไปแสดงได้
@@ -151,7 +174,8 @@ namespace MagicDrawing
         {
             isDrawing = false;
 
-            if (currentStroke.Count >= 2) strokes.Add(currentStroke.ToArray());
+            if (currentStroke.Count >= 2)
+                strokes.Add(new AppearanceStroke(currentStroke.ToArray(), penColor, penThickness));
             currentStroke.Clear();
 
             Redraw();
@@ -210,8 +234,9 @@ namespace MagicDrawing
 
         private void RebuildPreview()
         {
-            var all = new List<Vector2[]>(strokes);
-            if (currentStroke.Count >= 2) all.Add(currentStroke.ToArray());
+            var all = new List<AppearanceStroke>(strokes);
+            if (currentStroke.Count >= 2)
+                all.Add(new AppearanceStroke(currentStroke.ToArray(), penColor, penThickness));
 
             if (previewTexture == null)
             {
@@ -229,7 +254,7 @@ namespace MagicDrawing
             }
 
             // วาดทับใบเดิม ไม่สร้างใบใหม่
-            AppearanceRenderer.BakeInto(previewTexture, all, inkColor, lineThickness);
+            AppearanceRenderer.BakeInto(previewTexture, all);
 
             UpdateSizeHint(all);
         }
@@ -238,7 +263,7 @@ namespace MagicDrawing
         /// บอกความคืบหน้าของขนาดเป็นเปอร์เซ็นต์ ไม่ใช่แค่ผ่าน/ไม่ผ่าน
         /// ผู้เล่นจะได้รู้ว่าต้องวาดใหญ่ขึ้นอีกเท่าไร ไม่ใช่เดาไปเรื่อย ๆ
         /// </summary>
-        private void UpdateSizeHint(List<Vector2[]> all)
+        private void UpdateSizeHint(List<AppearanceStroke> all)
         {
             if (sizeHint == null) return;
 

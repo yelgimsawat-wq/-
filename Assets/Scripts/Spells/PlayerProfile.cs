@@ -69,13 +69,13 @@ namespace MagicDrawing
 
         public static bool HasAppearance => LoadAppearance().Count > 0;
 
-        public static void SaveAppearance(IReadOnlyList<Vector2[]> strokes)
+        public static void SaveAppearance(IReadOnlyList<AppearanceStroke> strokes)
         {
             PlayerPrefs.SetString(AppearanceKey, Encode(strokes));
             PlayerPrefs.Save();
         }
 
-        public static List<Vector2[]> LoadAppearance()
+        public static List<AppearanceStroke> LoadAppearance()
         {
             return Decode(PlayerPrefs.GetString(AppearanceKey, ""));
         }
@@ -89,56 +89,68 @@ namespace MagicDrawing
             PlayerPrefs.Save();
         }
 
-        /// <summary>
-        /// แปลงชุดเส้นเป็นข้อความสั้นที่สุดเท่าที่ทำได้
-        ///
-        /// เดิมเก็บเป็นตัวเลขทศนิยมคั่นด้วยจุลภาค กินราว 12 ตัวอักษรต่อจุด
-        /// ทำให้วาดได้แค่ 10 เส้น เส้นละ 20 จุด ก่อนจะทะลุช่องส่งข้ามเน็ต
-        /// ซึ่งน้อยเกินกว่าจะวาดตัวละครให้ดูดีได้
-        ///
-        /// เปลี่ยนมาเก็บพิกัดเป็นไบต์ (0-255) แล้วแปลงเป็น Base64
-        /// เหลือราว 2.7 ตัวอักษรต่อจุด ประหยัดลงกว่าสี่เท่า
-        /// วาดได้ 24 เส้น เส้นละ 48 จุด
-        ///
-        /// ความละเอียด 1/255 ของกรอบ คิดเป็นครึ่งพิกเซลบนภาพ 128 พิกเซล
-        /// ตาแยกไม่ออกอยู่แล้ว
-        ///
-        /// รูปแบบ: [จำนวนเส้น][จำนวนจุด][x][y][x][y]...[จำนวนจุด][x][y]...
-        /// </summary>
-        public static string Encode(IReadOnlyList<Vector2[]> strokes)
+        // ---------- การเข้ารหัส ----------
+        //
+        // เก็บพิกัดเป็นไบต์ (0-255) แล้วแปลงเป็น Base64 กินราว 2.7 ตัวอักษรต่อจุด
+        // ถ้าเก็บเป็นข้อความทศนิยมจะกิน 12 ตัวอักษรต่อจุด วาดได้ไม่ถึงครึ่ง
+        //
+        // ความละเอียด 1/255 ของกรอบ คิดเป็นครึ่งพิกเซลบนภาพ 256 พิกเซล ตาแยกไม่ออก
+        //
+        // รูปแบบรุ่น 2:
+        //   [0xFE][2][จำนวนเส้น] แล้วต่อด้วยแต่ละเส้น
+        //   [r][g][b][ความหนา][จำนวนจุด][x][y][x][y]...
+        //
+        // รูปแบบรุ่น 1 (ของเดิม ไม่มีสีและความหนา):
+        //   [จำนวนเส้น] แล้วต่อด้วยแต่ละเส้น [จำนวนจุด][x][y]...
+        //
+        // แยกสองรุ่นออกจากกันด้วยไบต์แรก รุ่นเก่าเก็บจำนวนเส้นซึ่งไม่เกิน 24
+        // จึงใช้ 0xFE เป็นเครื่องหมายรุ่นใหม่ได้โดยไม่ชนกัน
+        // ตัวละครที่วาดไว้ก่อนหน้านี้จึงยังเปิดได้ ไม่หายไปเฉย ๆ
+
+        private const byte VersionMarker = 0xFE;
+        private const byte CurrentVersion = 2;
+
+        public static string Encode(IReadOnlyList<AppearanceStroke> strokes)
         {
             if (strokes == null || strokes.Count == 0) return "";
 
-            var bytes = new List<byte>();
-
-            int strokeCount = Mathf.Min(strokes.Count, MaxStrokes);
-            var usable = new List<Vector2[]>(strokeCount);
-
-            for (int i = 0; i < strokeCount; i++)
-                if (strokes[i] != null && strokes[i].Length >= 2) usable.Add(strokes[i]);
+            var usable = new List<AppearanceStroke>(Mathf.Min(strokes.Count, MaxStrokes));
+            for (int i = 0; i < strokes.Count && usable.Count < MaxStrokes; i++)
+                if (strokes[i].IsValid) usable.Add(strokes[i]);
 
             if (usable.Count == 0) return "";
 
-            bytes.Add((byte)usable.Count);
-
-            foreach (Vector2[] stroke in usable)
+            var bytes = new List<byte>
             {
-                int pointCount = Mathf.Min(stroke.Length, MaxPointsPerStroke);
+                VersionMarker,
+                CurrentVersion,
+                (byte)usable.Count,
+            };
+
+            foreach (AppearanceStroke stroke in usable)
+            {
+                Color32 color = stroke.Color;
+                bytes.Add(color.r);
+                bytes.Add(color.g);
+                bytes.Add(color.b);
+                bytes.Add(stroke.ThicknessToByte());
+
+                int pointCount = Mathf.Min(stroke.Points.Length, MaxPointsPerStroke);
                 bytes.Add((byte)pointCount);
 
                 for (int p = 0; p < pointCount; p++)
                 {
-                    bytes.Add(ToByte(stroke[p].x));
-                    bytes.Add(ToByte(stroke[p].y));
+                    bytes.Add(ToByte(stroke.Points[p].x));
+                    bytes.Add(ToByte(stroke.Points[p].y));
                 }
             }
 
             return Convert.ToBase64String(bytes.ToArray());
         }
 
-        public static List<Vector2[]> Decode(string encoded)
+        public static List<AppearanceStroke> Decode(string encoded)
         {
-            var result = new List<Vector2[]>();
+            var result = new List<AppearanceStroke>();
             if (string.IsNullOrEmpty(encoded)) return result;
 
             byte[] bytes;
@@ -148,13 +160,54 @@ namespace MagicDrawing
             }
             catch (FormatException)
             {
-                // ข้อมูลเสียหรือมาจากเวอร์ชันเก่าคนละรูปแบบ ทิ้งไปดีกว่าทำเกมพัง
+                // ข้อมูลเสีย ทิ้งไปดีกว่าทำเกมพัง
                 return result;
             }
 
-            int index = 0;
             if (bytes.Length < 1) return result;
 
+            return bytes[0] == VersionMarker
+                ? DecodeVersion2(bytes)
+                : DecodeLegacy(bytes);
+        }
+
+        private static List<AppearanceStroke> DecodeVersion2(byte[] bytes)
+        {
+            var result = new List<AppearanceStroke>();
+            if (bytes.Length < 3) return result;
+
+            // ไบต์ที่ 1 คือหมายเลขรุ่น เผื่อมีรุ่น 3 ในอนาคตจะได้แยกออก
+            // ตอนนี้อ่านได้แค่รุ่น 2 รุ่นที่ไม่รู้จักถือว่าอ่านไม่ได้
+            if (bytes[1] != CurrentVersion) return result;
+
+            int index = 2;
+            int strokeCount = bytes[index++];
+
+            for (int s = 0; s < strokeCount; s++)
+            {
+                // ต้องมีอย่างน้อย สี 3 + ความหนา 1 + จำนวนจุด 1
+                if (index + 5 > bytes.Length) break;
+
+                var color = new Color32(bytes[index], bytes[index + 1], bytes[index + 2], 255);
+                float thickness = AppearanceStroke.ThicknessFromByte(bytes[index + 3]);
+                int pointCount = bytes[index + 4];
+                index += 5;
+
+                if (pointCount < 2 || index + pointCount * 2 > bytes.Length) break;
+
+                Vector2[] points = ReadPoints(bytes, ref index, pointCount);
+                result.Add(new AppearanceStroke(points, color, thickness));
+            }
+
+            return result;
+        }
+
+        /// <summary>อ่านของที่บันทึกไว้ก่อนจะมีสีและความหนา ใช้ค่าเริ่มต้นแทน</summary>
+        private static List<AppearanceStroke> DecodeLegacy(byte[] bytes)
+        {
+            var result = new List<AppearanceStroke>();
+
+            int index = 0;
             int strokeCount = bytes[index++];
 
             for (int s = 0; s < strokeCount; s++)
@@ -163,21 +216,25 @@ namespace MagicDrawing
 
                 int pointCount = bytes[index++];
                 if (pointCount < 2) { index += pointCount * 2; continue; }
-
-                // ข้อมูลขาดกลางทาง หยุดตรงนี้แทนที่จะอ่านทะลุขอบ
                 if (index + pointCount * 2 > bytes.Length) break;
 
-                var points = new Vector2[pointCount];
-                for (int p = 0; p < pointCount; p++)
-                {
-                    points[p] = new Vector2(FromByte(bytes[index]), FromByte(bytes[index + 1]));
-                    index += 2;
-                }
-
-                result.Add(points);
+                Vector2[] points = ReadPoints(bytes, ref index, pointCount);
+                result.Add(new AppearanceStroke(
+                    points, Color.white, AppearanceRenderer.DefaultThicknessRatio));
             }
 
             return result;
+        }
+
+        private static Vector2[] ReadPoints(byte[] bytes, ref int index, int count)
+        {
+            var points = new Vector2[count];
+            for (int p = 0; p < count; p++)
+            {
+                points[p] = new Vector2(FromByte(bytes[index]), FromByte(bytes[index + 1]));
+                index += 2;
+            }
+            return points;
         }
 
         private static byte ToByte(float value)
@@ -201,7 +258,7 @@ namespace MagicDrawing
         public const float MinimumSizeRatio = 0.5f;
 
         /// <summary>ขนาดของรูปเทียบกับกรอบวาด 0 = ไม่มีอะไรเลย, 1 = เต็มกรอบ</summary>
-        public static float MeasureSize(IReadOnlyList<Vector2[]> strokes)
+        public static float MeasureSize(IReadOnlyList<AppearanceStroke> strokes)
         {
             if (strokes == null || strokes.Count == 0) return 0f;
 
@@ -209,11 +266,11 @@ namespace MagicDrawing
             float maxX = float.MinValue, maxY = float.MinValue;
             bool any = false;
 
-            foreach (Vector2[] stroke in strokes)
+            foreach (AppearanceStroke stroke in strokes)
             {
-                if (stroke == null) continue;
+                if (stroke.Points == null) continue;
 
-                foreach (Vector2 p in stroke)
+                foreach (Vector2 p in stroke.Points)
                 {
                     if (p.x < minX) minX = p.x;
                     if (p.x > maxX) maxX = p.x;
@@ -228,7 +285,7 @@ namespace MagicDrawing
             return Mathf.Max(maxX - minX, maxY - minY);
         }
 
-        public static bool IsBigEnough(IReadOnlyList<Vector2[]> strokes)
+        public static bool IsBigEnough(IReadOnlyList<AppearanceStroke> strokes)
         {
             return MeasureSize(strokes) >= MinimumSizeRatio;
         }

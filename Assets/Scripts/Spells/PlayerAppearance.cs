@@ -21,8 +21,6 @@ namespace MagicDrawing
         [Tooltip("ตัวที่จะเอารูปที่วาดไปใส่ ปล่อยว่าง = หาในลูกให้เอง")]
         [SerializeField] private SpriteRenderer targetRenderer;
 
-        [Tooltip("สีเส้นตัวละคร")]
-        [SerializeField] private Color inkColor = Color.white;
 
         [Tooltip("ขนาดตัวละครเป็นหน่วยโลก ควรตรงกับความสูงของ collider")]
         [SerializeField] private float worldSize = 1.5f;
@@ -33,7 +31,8 @@ namespace MagicDrawing
                 NetworkVariableReadPermission.Everyone,
                 NetworkVariableWritePermission.Owner);
 
-        // 4096 ไบต์พอสำหรับ 10 เส้น เส้นละ 20 จุด ซึ่งเป็นเพดานที่ PlayerProfile กำหนด
+        // 4096 ไบต์พอสำหรับเพดานที่ PlayerProfile กำหนดไว้ คือ 24 เส้น เส้นละ 48 จุด
+        // พร้อมสีและความหนาของแต่ละเส้น รวมแล้วราว 3,240 ตัวอักษร
         private readonly NetworkVariable<FixedString4096Bytes> appearance =
             new NetworkVariable<FixedString4096Bytes>(
                 default,
@@ -141,7 +140,7 @@ namespace MagicDrawing
             // ไม่ว่าจะอบด้วยความละเอียดเท่าไร
             float pixelsPerUnit = AppearanceRenderer.TextureSize / Mathf.Max(0.01f, worldSize);
 
-            generatedSprite = AppearanceRenderer.BakeSprite(strokes, inkColor, pixelsPerUnit);
+            generatedSprite = AppearanceRenderer.BakeSprite(strokes, pixelsPerUnit);
             targetRenderer.sprite = generatedSprite;
         }
 

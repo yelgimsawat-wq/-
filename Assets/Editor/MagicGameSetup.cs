@@ -447,7 +447,7 @@ public static class MagicGameSetup
         // จัดเป็นสองคอลัมน์: ควบคุมอยู่ซ้าย กระดานวาดอยู่ขวา
         // แยกกันแล้วกระดานได้พื้นที่เต็มความสูงของการ์ด วาดง่ายขึ้นมาก
         // และเหลือที่พอให้โชว์ตัวอย่างว่าในเกมจะออกมาหน้าตาแบบไหน
-        GameObject panel = CreatePanel(canvas, "ProfilePanel", new Vector2(1280f, 820f));
+        GameObject panel = CreatePanel(canvas, "ProfilePanel", new Vector2(1280f, 900f));
         MakeHorizontal(panel, 24f);
 
         GameObject left = CreateColumn(panel.transform, "LeftColumn", 460f, 0f);
@@ -463,6 +463,8 @@ public static class MagicGameSetup
 
         CreateText(left.transform, "PreviewCaption", "ในเกมจะเห็นแบบนี้", 20, TextColor);
         RawImage previewCharacter = CreateGamePreview(left.transform, out Text previewName);
+
+        PenWidgets pen = CreatePenTools(left.transform);
 
         Text sizeHint = CreateText(left.transform, "SizeHint",
             "ลากเมาส์ในกรอบขวาเพื่อวาดตัวละคร", 19, TextColor);
@@ -506,6 +508,16 @@ public static class MagicGameSetup
         padSo.FindProperty("preview").objectReferenceValue = preview;
         padSo.FindProperty("sizeHint").objectReferenceValue = sizeHint;
         padSo.ApplyModifiedPropertiesWithoutUndo();
+
+        var penControls = panel.AddComponent<MagicDrawing.PenControls>();
+        var penSo = new SerializedObject(penControls);
+        penSo.FindProperty("pad").objectReferenceValue = pad;
+        penSo.FindProperty("sizeSlider").objectReferenceValue = pen.SizeSlider;
+        penSo.FindProperty("sizeDot").objectReferenceValue = pen.SizeDot;
+        SetObjectArray(penSo.FindProperty("swatchButtons"), pen.Buttons);
+        SetObjectArray(penSo.FindProperty("swatchHighlights"), pen.Highlights);
+        SetColorArray(penSo.FindProperty("swatchColors"), pen.Colors);
+        penSo.ApplyModifiedPropertiesWithoutUndo();
 
         var livePreview = panel.AddComponent<MagicDrawing.ProfileCharacterPreview>();
         var liveSo = new SerializedObject(livePreview);
@@ -576,8 +588,8 @@ public static class MagicGameSetup
         frame.GetComponent<Image>().color = new Color(0.10f, 0.12f, 0.17f);
 
         var element = frame.AddComponent<LayoutElement>();
-        element.minHeight = 280f;
-        element.preferredHeight = 280f;
+        element.minHeight = 220f;
+        element.preferredHeight = 220f;
 
         // ป้ายชื่อติดขอบบน
         nameLabel = CreateText(frame.transform, "NameLabel", "ผู้เล่น", 22, AccentColor, FontStyle.Bold);
@@ -608,7 +620,7 @@ public static class MagicGameSetup
         characterRect.anchorMin = new Vector2(0.5f, 0f);
         characterRect.anchorMax = new Vector2(0.5f, 0f);
         characterRect.pivot = new Vector2(0.5f, 0f);
-        characterRect.sizeDelta = new Vector2(190f, 190f);
+        characterRect.sizeDelta = new Vector2(150f, 150f);
         characterRect.anchoredPosition = new Vector2(0f, 25f);
 
         return characterGo.GetComponent<RawImage>();
@@ -1221,5 +1233,199 @@ public static class MagicGameSetup
         string parent = Path.GetDirectoryName(path).Replace('\\', '/');
         string leaf = Path.GetFileName(path);
         AssetDatabase.CreateFolder(parent, leaf);
+    }
+    /// <summary>ของที่สร้างไว้สำหรับแถบเครื่องมือปากกา รอผูกเข้ากับกระดานทีหลัง</summary>
+    private struct PenWidgets
+    {
+        public Slider SizeSlider;
+        public RectTransform SizeDot;
+        public Button[] Buttons;
+        public Color[] Colors;
+        public Image[] Highlights;
+    }
+
+    /// <summary>
+    /// แถบเครื่องมือปากกา: แถบเลื่อนขนาด กับปุ่มเลือกสี
+    ///
+    /// สร้างของก่อน แล้วค่อยผูกกับกระดานทีหลัง เพราะกระดานถูกสร้างหลังจากนี้
+    /// </summary>
+    private static PenWidgets CreatePenTools(Transform parent)
+    {
+        CreateText(parent, "PenSizeCaption", "ขนาดปากกา", 20, TextColor);
+
+        // แถวเดียวมีทั้งแถบเลื่อนและจุดตัวอย่าง จะได้เห็นผลทันทีที่เลื่อน
+        var row = new GameObject("PenSizeRow", typeof(RectTransform));
+        row.transform.SetParent(parent, false);
+
+        var rowLayout = row.AddComponent<HorizontalLayoutGroup>();
+        rowLayout.spacing = 14f;
+        rowLayout.childAlignment = TextAnchor.MiddleLeft;
+        rowLayout.childControlWidth = true;
+        rowLayout.childControlHeight = true;
+        rowLayout.childForceExpandWidth = false;
+        rowLayout.childForceExpandHeight = false;
+
+        var rowElement = row.AddComponent<LayoutElement>();
+        rowElement.minHeight = 44f;
+        rowElement.preferredHeight = 44f;
+
+        Slider slider = CreateSlider(row.transform, "PenSizeSlider");
+        var sliderElement = slider.gameObject.AddComponent<LayoutElement>();
+        sliderElement.flexibleWidth = 1f;
+        sliderElement.minHeight = 24f;
+
+        // กรอบจุดตัวอย่าง ขนาดคงที่ ส่วนจุดข้างในโตตามขนาดปากกา
+        var dotFrame = new GameObject("PenSizeDotFrame", typeof(RectTransform));
+        dotFrame.transform.SetParent(row.transform, false);
+
+        var dotFrameElement = dotFrame.AddComponent<LayoutElement>();
+        dotFrameElement.minWidth = 40f;
+        dotFrameElement.preferredWidth = 40f;
+        dotFrameElement.minHeight = 40f;
+
+        var dot = new GameObject("PenSizeDot", typeof(Image));
+        dot.transform.SetParent(dotFrame.transform, false);
+        dot.GetComponent<Image>().color = TextColor;
+
+        var dotRect = dot.GetComponent<RectTransform>();
+        dotRect.anchorMin = new Vector2(0.5f, 0.5f);
+        dotRect.anchorMax = new Vector2(0.5f, 0.5f);
+        dotRect.pivot = new Vector2(0.5f, 0.5f);
+        dotRect.anchoredPosition = Vector2.zero;
+        dotRect.sizeDelta = new Vector2(12f, 12f);
+
+        CreateText(parent, "PenColorCaption", "สีปากกา", 20, TextColor);
+
+        Color[] colors =
+        {
+            Color.white,
+            new Color(0.20f, 0.22f, 0.28f),   // เกือบดำ ใช้ตัดเส้น
+            new Color(1.00f, 0.35f, 0.35f),   // แดง
+            new Color(1.00f, 0.65f, 0.25f),   // ส้ม
+            new Color(1.00f, 0.90f, 0.35f),   // เหลือง
+            new Color(0.45f, 0.85f, 0.45f),   // เขียว
+            new Color(0.35f, 0.65f, 1.00f),   // ฟ้า
+            new Color(0.75f, 0.50f, 1.00f),   // ม่วง
+        };
+
+        var swatchRow = new GameObject("PenColorRow", typeof(RectTransform));
+        swatchRow.transform.SetParent(parent, false);
+
+        var swatchLayout = swatchRow.AddComponent<HorizontalLayoutGroup>();
+        swatchLayout.spacing = 8f;
+        swatchLayout.childAlignment = TextAnchor.MiddleCenter;
+        swatchLayout.childControlWidth = true;
+        swatchLayout.childControlHeight = true;
+        swatchLayout.childForceExpandWidth = true;
+        swatchLayout.childForceExpandHeight = true;
+
+        var swatchElement = swatchRow.AddComponent<LayoutElement>();
+        swatchElement.minHeight = 44f;
+        swatchElement.preferredHeight = 44f;
+
+        var buttons = new Button[colors.Length];
+        var highlights = new Image[colors.Length];
+
+        for (int i = 0; i < colors.Length; i++)
+        {
+            // กรอบเลือกอยู่ชั้นนอก ตัวสีอยู่ชั้นใน กรอบจึงโผล่รอบ ๆ ได้
+            var frame = new GameObject($"Swatch{i}", typeof(Image), typeof(Button));
+            frame.transform.SetParent(swatchRow.transform, false);
+
+            var highlight = frame.GetComponent<Image>();
+            highlight.color = AccentColor;
+            highlight.enabled = false;
+
+            var swatch = new GameObject("Color", typeof(Image));
+            swatch.transform.SetParent(frame.transform, false);
+            swatch.GetComponent<Image>().color = colors[i];
+
+            RectTransform swatchRect = swatch.GetComponent<RectTransform>();
+            StretchToParent(swatchRect);
+            // เว้นขอบไว้ 4 พิกเซล ให้กรอบที่อยู่ข้างหลังโผล่ออกมาเห็นได้
+            swatchRect.offsetMin = new Vector2(4f, 4f);
+            swatchRect.offsetMax = new Vector2(-4f, -4f);
+
+            var button = frame.GetComponent<Button>();
+            // ให้ปุ่มไฮไลต์ตัวสี ไม่ใช่กรอบ ไม่งั้นกดแล้วกรอบกะพริบ
+            button.targetGraphic = swatch.GetComponent<Image>();
+
+            buttons[i] = button;
+            highlights[i] = highlight;
+        }
+
+        return new PenWidgets
+        {
+            SizeSlider = slider,
+            SizeDot = dotRect,
+            Buttons = buttons,
+            Colors = colors,
+            Highlights = highlights,
+        };
+    }
+
+    /// <summary>
+    /// แถบเลื่อนแบบพื้นฐาน Unity ไม่มีตัวช่วยสร้างจากโค้ด ต้องประกอบเองทั้งชุด
+    /// โครงสร้างที่ Slider ต้องการคือ พื้นหลัง แถบที่เติม และหมุดลาก
+    /// </summary>
+    private static Slider CreateSlider(Transform parent, string name)
+    {
+        var go = new GameObject(name, typeof(RectTransform), typeof(Slider));
+        go.transform.SetParent(parent, false);
+
+        var background = new GameObject("Background", typeof(Image));
+        background.transform.SetParent(go.transform, false);
+        background.GetComponent<Image>().color = new Color(0.16f, 0.18f, 0.25f);
+        StretchToParent(background.GetComponent<RectTransform>());
+
+        var fillArea = new GameObject("Fill Area", typeof(RectTransform));
+        fillArea.transform.SetParent(go.transform, false);
+        RectTransform fillAreaRect = fillArea.GetComponent<RectTransform>();
+        StretchToParent(fillAreaRect);
+        // เว้นที่ให้หมุดไม่ให้แถบล้นออกนอกปลายทั้งสองข้าง
+        fillAreaRect.offsetMin = new Vector2(10f, 0f);
+        fillAreaRect.offsetMax = new Vector2(-10f, 0f);
+
+        var fill = new GameObject("Fill", typeof(Image));
+        fill.transform.SetParent(fillArea.transform, false);
+        fill.GetComponent<Image>().color = AccentColor;
+        RectTransform fillRect = fill.GetComponent<RectTransform>();
+        StretchToParent(fillRect);
+        fillRect.sizeDelta = new Vector2(10f, 0f);
+
+        var handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
+        handleArea.transform.SetParent(go.transform, false);
+        RectTransform handleAreaRect = handleArea.GetComponent<RectTransform>();
+        StretchToParent(handleAreaRect);
+        handleAreaRect.offsetMin = new Vector2(10f, 0f);
+        handleAreaRect.offsetMax = new Vector2(-10f, 0f);
+
+        var handle = new GameObject("Handle", typeof(Image));
+        handle.transform.SetParent(handleArea.transform, false);
+        handle.GetComponent<Image>().color = Color.white;
+        RectTransform handleRect = handle.GetComponent<RectTransform>();
+        handleRect.sizeDelta = new Vector2(20f, 0f);
+
+        var slider = go.GetComponent<Slider>();
+        slider.fillRect = fillRect;
+        slider.handleRect = handleRect;
+        slider.targetGraphic = handle.GetComponent<Image>();
+        slider.direction = Slider.Direction.LeftToRight;
+
+        return slider;
+    }
+
+    private static void SetObjectArray(SerializedProperty property, Object[] values)
+    {
+        property.arraySize = values.Length;
+        for (int i = 0; i < values.Length; i++)
+            property.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
+    }
+
+    private static void SetColorArray(SerializedProperty property, Color[] values)
+    {
+        property.arraySize = values.Length;
+        for (int i = 0; i < values.Length; i++)
+            property.GetArrayElementAtIndex(i).colorValue = values[i];
     }
 }
