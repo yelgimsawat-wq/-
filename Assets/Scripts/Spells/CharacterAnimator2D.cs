@@ -43,12 +43,20 @@ namespace MagicDrawing
         [Tooltip("เร็วกว่านี้ถือว่ากำลังเดิน (หน่วยโลกต่อวินาที)")]
         [SerializeField] private float walkThreshold = 0.4f;
 
-        [Tooltip("เร็วกว่านี้ในแนวดิ่งถือว่าลอยอยู่")]
+        [Tooltip("เร็วกว่านี้ในแนวดิ่งถือว่าลอยอยู่ ใช้เฉพาะตอนหา NetworkPlayer2D ไม่เจอ")]
         [SerializeField] private float airThreshold = 1.5f;
+
+        [Header("แก้ปัญหา")]
+        [Tooltip("พิมพ์ท่าที่เปลี่ยนลง Console เปิดเมื่อสงสัยว่าอนิเมชันไม่ทำงาน "
+                 + "พิมพ์เฉพาะตอนเปลี่ยนท่า ไม่ได้พิมพ์ทุกเฟรม")]
+        [SerializeField] private bool logStateChanges;
 
         private Vector3 lastPosition;
         private float phase;
         private NetworkPlayer2D player;
+
+        private float smoothedHorizontal;
+        private float smoothedVertical;
 
         private Vector3 baseScale;
         private float currentTilt;
@@ -107,6 +115,30 @@ namespace MagicDrawing
             lastPosition = transform.position;
         }
 
+        private string lastReportedState;
+
+        /// <summary>
+        /// พิมพ์เฉพาะตอนเปลี่ยนท่า ไม่ใช่ทุกเฟรม
+        /// ถ้าเดินอยู่แล้วยังขึ้น "ยืน" หรือ "ลอย" แปลว่าตัวตัดสินท่าผิด
+        /// ไม่ใช่ตัวอนิเมชันเสีย จะได้ไล่ถูกจุด
+        /// </summary>
+        private void ReportState(bool airborne, bool walking, float horizontal, float vertical)
+        {
+            string state = airborne ? "ลอย" : walking ? "เดิน" : "ยืน";
+            if (state == lastReportedState) return;
+
+            lastReportedState = state;
+
+            string ground = player != null
+                ? (player.IsGrounded ? "แตะพื้น" : "ไม่แตะพื้น")
+                : "ไม่มี NetworkPlayer2D";
+
+            Debug.Log(
+                $"[CharacterAnimator2D] {name} -> {state} | "
+                + $"เร็วแนวนอน {horizontal:F2} (เกณฑ์ {walkThreshold}) | "
+                + $"เร็วแนวดิ่ง {vertical:F2} | {ground}", this);
+        }
+
         private void LateUpdate()
         {
             float dt = Mathf.Max(Time.deltaTime, 0.0001f);
@@ -114,8 +146,24 @@ namespace MagicDrawing
             Vector3 delta = transform.position - lastPosition;
             lastPosition = transform.position;
 
-            float horizontalSpeed = Mathf.Abs(delta.x) / dt;
-            float verticalSpeed = Mathf.Abs(delta.y) / dt;
+            // เกลี่ยความเร็วก่อนใช้ อย่าเชื่อค่าของเฟรมเดียว
+            //
+            // ฟิสิกส์ขยับตัวละคร 50 ครั้งต่อวินาที แต่จอวาด 60-144 เฟรม
+            // เฟรมที่ไม่มีการก้าวของฟิสิกส์ ระยะที่ขยับจะเป็นศูนย์พอดี
+            // ถ้าเชื่อค่าดิบจะสลับไปมาระหว่าง "เดิน" กับ "ยืน" หลายสิบครั้งต่อวินาที
+            // มุมเอียงถูกดึงกลับเป็นศูนย์ตลอด จนดูเหมือนไม่มีอนิเมชันเลย
+            // ยิ่งจอเฟรมสูงยิ่งอาการหนัก
+            float instantHorizontal = Mathf.Abs(delta.x) / dt;
+            float instantVertical = Mathf.Abs(delta.y) / dt;
+
+            // ค่าคงที่ 12 คือความไวในการตาม ประมาณ 80 มิลลิวินาทีก็เข้าที่
+            // เร็วพอให้ตอบสนองทันตอนเริ่มเดินและหยุดเดิน
+            float follow = 1f - Mathf.Exp(-dt * 12f);
+            smoothedHorizontal = Mathf.Lerp(smoothedHorizontal, instantHorizontal, follow);
+            smoothedVertical = Mathf.Lerp(smoothedVertical, instantVertical, follow);
+
+            float horizontalSpeed = smoothedHorizontal;
+            float verticalSpeed = smoothedVertical;
 
             // ถามตัวคุมการเดินตรง ๆ ว่าเท้าแตะพื้นอยู่ไหม แม่นกว่าเดาจากความเร็ว
             //
@@ -130,6 +178,8 @@ namespace MagicDrawing
                 : verticalSpeed > airThreshold;
 
             bool walking = !airborne && horizontalSpeed > walkThreshold;
+
+            if (logStateChanges) ReportState(airborne, walking, horizontalSpeed, verticalSpeed);
 
             float targetTilt;
             Vector3 targetScale;

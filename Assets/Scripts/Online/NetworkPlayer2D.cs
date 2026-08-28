@@ -95,6 +95,13 @@ public class NetworkPlayer2D : NetworkBehaviour
         body.gravityScale = gravityScale;
         // หยุดตัวเองด้วย MoveTowards อยู่แล้ว ถ้ามี damping ซ้ำจะเดินหนืด
         body.linearDamping = 0f;
+
+        // ให้ฟิสิกส์เกลี่ยตำแหน่งระหว่างก้าว
+        //
+        // ฟิสิกส์เดินแค่ 50 ครั้งต่อวินาที แต่จอวาด 60-144 เฟรม ถ้าไม่เปิดข้อนี้
+        // ตัวละครจะกระโดดเป็นขั้น ๆ ตามจังหวะฟิสิกส์ เห็นเป็นอาการสั่นเบา ๆ
+        // และทำให้โค้ดที่วัดความเร็วจากระยะต่อเฟรมได้ค่าศูนย์สลับกับค่าสูง
+        body.interpolation = RigidbodyInterpolation2D.Interpolate;
         // ตรวจการชนแบบต่อเนื่อง ตัวที่ตกเร็วจะได้ไม่กระโดดข้ามพื้นไปในเฟรมเดียว
         body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
