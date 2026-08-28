@@ -96,8 +96,6 @@ namespace MagicDrawing
         private SpriteRenderer drawSpark;
         private static Sprite sparkSprite;
 
-        private AudioSource drawLoopSource;
-        private Vector2 lastSparkPosition;
 
         /// <summary>
         /// กำลังเขียนคาถาหรือเล็งอยู่หรือเปล่า
@@ -187,8 +185,6 @@ namespace MagicDrawing
             RedrawActiveLine();
 
             SpellAudio.Play(SpellSound.StrokeStart, transform.position);
-            lastSparkPosition = currentStroke[0];
-            StartDrawLoop();
         }
 
         private void AppendPoint(Vector2 screen)
@@ -218,7 +214,6 @@ namespace MagicDrawing
         {
             isPressing = false;
             HideSpark();
-            StopDrawLoop();
 
             Vector2[] stroke = currentStroke.ToArray();
             currentStroke.Clear();
@@ -415,7 +410,6 @@ namespace MagicDrawing
             activeLine = null;
             HideAimArrow();
             HideSpark();
-            StopDrawLoop();
 
             // หยุดจับความดัง แต่ค่าที่จับได้ยังอ่านได้ เพราะ SpellCaster อ่านทีหลัง
             if (voicePower != null) voicePower.StopCapture();
@@ -553,11 +547,7 @@ namespace MagicDrawing
                 activeLine.SetPosition(i, new Vector3(currentStroke[i].x, currentStroke[i].y, 0f));
 
             if (currentStroke.Count > 0)
-            {
-                Vector2 tip = currentStroke[currentStroke.Count - 1];
-                ShowSpark(tip);
-                UpdateDrawLoop(tip);
-            }
+                ShowSpark(currentStroke[currentStroke.Count - 1]);
         }
 
         // ---------- ประกายไฟที่ปลายปากกา ----------
@@ -590,61 +580,6 @@ namespace MagicDrawing
         private void HideSpark()
         {
             if (drawSpark != null) drawSpark.enabled = false;
-        }
-
-        // ---------- เสียงต่อเนื่องระหว่างลาก ----------
-
-        /// <summary>
-        /// เปิดเสียงวนลูปตอนเริ่มลาก
-        ///
-        /// ใช้ AudioSource ของตัวเองแทน PlayClipAtPoint เพราะต้องวนลูป
-        /// และต้องปรับความดัง/ระดับเสียงตามความเร็วที่ลากระหว่างเล่นอยู่
-        /// ซึ่ง PlayClipAtPoint ทำไม่ได้ มันเล่นแล้วปล่อยจนจบอย่างเดียว
-        /// </summary>
-        private void StartDrawLoop()
-        {
-            if (drawLoopSource == null)
-            {
-                var holder = new GameObject("SpellDrawLoop");
-                holder.transform.SetParent(transform, false);
-
-                drawLoopSource = holder.AddComponent<AudioSource>();
-                drawLoopSource.clip = SpellAudio.GetClip(SpellSound.DrawLoop);
-                drawLoopSource.loop = true;
-                drawLoopSource.playOnAwake = false;
-                // เสียงของเราเองควรดังเท่ากันเสมอ ไม่ต้องเบาลงตามระยะกล้อง
-                drawLoopSource.spatialBlend = 0f;
-            }
-
-            drawLoopSource.volume = 0f;
-            if (!drawLoopSource.isPlaying) drawLoopSource.Play();
-        }
-
-        private void StopDrawLoop()
-        {
-            if (drawLoopSource != null && drawLoopSource.isPlaying) drawLoopSource.Stop();
-        }
-
-        /// <summary>
-        /// ลากเร็ว = ดังขึ้นและเสียงสูงขึ้น ลากช้าหรือหยุด = เบาลง
-        /// ทำให้เสียงตอบสนองกับมือ ไม่ใช่เสียงฮัมคงที่ที่ฟังแล้วน่ารำคาญ
-        /// </summary>
-        private void UpdateDrawLoop(Vector2 position)
-        {
-            if (drawLoopSource == null) return;
-
-            float speed = Vector2.Distance(position, lastSparkPosition) / Mathf.Max(Time.deltaTime, 0.0001f);
-            lastSparkPosition = position;
-
-            float t = Mathf.Clamp01(speed / 12f);
-
-            // ไล่ค่าทีละนิดแทนการกระโดด ไม่งั้นเสียงจะสะดุดตามการกระตุกของเมาส์
-            drawLoopSource.volume = Mathf.Lerp(
-                drawLoopSource.volume, Mathf.Lerp(0.12f, 0.5f, t) * SpellAudio.MasterVolume,
-                12f * Time.deltaTime);
-
-            drawLoopSource.pitch = Mathf.Lerp(drawLoopSource.pitch, Mathf.Lerp(0.8f, 1.35f, t),
-                12f * Time.deltaTime);
         }
 
         /// <summary>จุดนุ่ม ๆ สว่างตรงกลางจางที่ขอบ สร้างครั้งเดียวใช้ร่วมกันทุกตัว</summary>
