@@ -67,6 +67,17 @@ namespace MagicDrawing
             transform.localPosition = Vector3.zero;
         }
 
+        /// <summary>
+        /// ตั้งขนาดและอายุจากข้างนอก ใช้ตอนที่โล่ถูกสร้างด้วยโค้ด
+        /// เพราะไม่มี Prefab ให้กดแก้ค่าใน Inspector
+        /// ค่าที่น้อยกว่าหรือเท่ากับ 0 แปลว่าไม่เปลี่ยน ใช้ของเดิมต่อ
+        /// </summary>
+        public void Configure(float newScale, float newDuration)
+        {
+            if (newScale > 0f) scale = newScale;
+            if (newDuration > 0f) duration = newDuration;
+        }
+
         public void Play(SpellElement element)
         {
             renderers = GetComponentsInChildren<SpriteRenderer>(true);

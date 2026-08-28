@@ -58,6 +58,14 @@ namespace MagicDrawing
         [Tooltip("โล่สำรอง ใช้เมื่อธาตุนั้นยังไม่ได้ใส่ของตัวเอง")]
         [SerializeField] private SpellShield fallbackShieldPrefab;
 
+        [Header("ขนาดและอายุของโล่")]
+        [Tooltip("ขนาดโล่เทียบกับตัวละคร 1 = เท่าตัว, 2 = สองเท่า "
+                 + "ปรับตรงนี้ได้เลยแม้ยังไม่มี Prefab โล่")]
+        [SerializeField] private float shieldScale = 1.8f;
+
+        [Tooltip("โล่อยู่กี่วินาทีก่อนจางหาย")]
+        [SerializeField] private float shieldDuration = 4f;
+
         [Header("เส้นที่วาดค้างไว้บนแผนที่")]
         [Tooltip("แสดงเส้นที่ผู้เล่นเขียนให้ทุกคนเห็นด้วย ปิดได้ถ้าอยากเห็นแค่วงเวท")]
         [SerializeField] private bool showDrawnStroke = true;
@@ -203,6 +211,7 @@ namespace MagicDrawing
                 shield = SpellShield.CreateFallback(transform);
             }
 
+            shield.Configure(shieldScale, shieldDuration);
             shield.Play(element);
         }
 
