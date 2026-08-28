@@ -63,9 +63,18 @@ namespace MagicDrawing
             Instance = this;
         }
 
-        private void OnDestroy()
+        /// <summary>
+        /// ต้องใส่ override และเรียก base ด้วย
+        ///
+        /// NetworkBehaviour มี OnDestroy ของตัวเองที่ทำงานสำคัญอยู่ คือถอนทะเบียน
+        /// ตัวเองออกจากระบบเครือข่ายตอนถูกทำลาย ถ้าเขียนทับเฉย ๆ โดยไม่ใส่ override
+        /// เมธอดของเราจะไปบังของเดิม งานถอนทะเบียนจึงไม่ได้ทำ แล้วจะมีของค้าง
+        /// อยู่ในระบบจนขึ้น error ตอนเปลี่ยนซีนหรือออกจากห้อง
+        /// </summary>
+        public override void OnDestroy()
         {
             if (Instance == this) Instance = null;
+            base.OnDestroy();
         }
 
         /// <summary>

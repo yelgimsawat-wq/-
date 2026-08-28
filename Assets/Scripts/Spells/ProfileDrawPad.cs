@@ -50,6 +50,12 @@ namespace MagicDrawing
         /// <summary>ชุดเส้นที่วาดไว้ตอนนี้</summary>
         public IReadOnlyList<Vector2[]> Strokes => strokes;
 
+        /// <summary>
+        /// ภาพที่วาดอยู่ตอนนี้ ให้ตัวอย่างตัวละครยืมไปแสดงได้
+        /// ใช้ใบเดียวกันเลย ไม่ต้องอบซ้ำ ประหยัดทั้งแรมและเวลา
+        /// </summary>
+        public Texture2D PreviewTexture => previewTexture;
+
         /// <summary>วาดครบเงื่อนไขแล้วหรือยัง (มีเส้นและตัวใหญ่พอ)</summary>
         public bool IsValid => strokes.Count > 0 && PlayerProfile.IsBigEnough(strokes);
 

@@ -444,30 +444,46 @@ public static class MagicGameSetup
     /// </summary>
     private static GameObject CreateProfilePanel(Transform canvas, OnlineUI2D ui)
     {
-        GameObject panel = CreatePanel(canvas, "ProfilePanel", new Vector2(760f, 990f));
+        // จัดเป็นสองคอลัมน์: ควบคุมอยู่ซ้าย กระดานวาดอยู่ขวา
+        // แยกกันแล้วกระดานได้พื้นที่เต็มความสูงของการ์ด วาดง่ายขึ้นมาก
+        // และเหลือที่พอให้โชว์ตัวอย่างว่าในเกมจะออกมาหน้าตาแบบไหน
+        GameObject panel = CreatePanel(canvas, "ProfilePanel", new Vector2(1280f, 820f));
+        MakeHorizontal(panel, 24f);
 
-        CreateText(panel.transform, "Title", "ตั้งค่าตัวละคร", 40, AccentColor, FontStyle.Bold);
-        CreateText(panel.transform, "NameCaption", "ชื่อของคุณ", 20, TextColor);
+        GameObject left = CreateColumn(panel.transform, "LeftColumn", 460f, 0f);
+        GameObject right = CreateColumn(panel.transform, "RightColumn", 0f, 1f);
 
-        InputField nameInput = CreateInput(panel.transform, "NameInput", "ใส่ชื่อ");
+        // ---------- คอลัมน์ซ้าย: ชื่อ ตัวอย่าง ปุ่ม ----------
+
+        CreateText(left.transform, "Title", "ตั้งค่าตัวละคร", 38, AccentColor, FontStyle.Bold);
+        CreateText(left.transform, "NameCaption", "ชื่อของคุณ", 20, TextColor);
+
+        InputField nameInput = CreateInput(left.transform, "NameInput", "ใส่ชื่อ");
         nameInput.characterLimit = MagicDrawing.PlayerProfile.MaxNameLength;
 
-        CreateText(panel.transform, "DrawCaption", "วาดตัวละครของคุณ", 20, TextColor);
+        CreateText(left.transform, "PreviewCaption", "ในเกมจะเห็นแบบนี้", 20, TextColor);
+        RawImage previewCharacter = CreateGamePreview(left.transform, out Text previewName);
 
-        // กรอบวาดต้องเป็นจัตุรัส เพราะปลายทางเป็นภาพจัตุรัส
-        // ถ้าปล่อยให้ยืดเต็มความกว้างของการ์ด วาดวงกลมจะได้วงรี
-        //
+        Text sizeHint = CreateText(left.transform, "SizeHint",
+            "ลากเมาส์ในกรอบขวาเพื่อวาดตัวละคร", 19, TextColor);
+
+        Button undoButton = CreateButton(left.transform, "UndoButton", "ลบเส้นล่าสุด");
+        Button clearButton = CreateButton(left.transform, "ClearButton", "ล้างทั้งหมด");
+        Button confirmButton = CreateButton(left.transform, "ConfirmProfileButton", "ยืนยัน แล้วไปเข้าห้อง");
+
+        // ---------- คอลัมน์ขวา: กระดานวาด ----------
+
+        CreateText(right.transform, "DrawCaption", "วาดตัวละครของคุณ", 20, TextColor);
+
         // ตัวนอกเป็นแค่ที่จองพื้นที่ให้ layout ส่วนจัตุรัสจริงอยู่ข้างใน
         // ใช้ AspectRatioFitter บังคับให้เป็นจัตุรัสและอยู่กึ่งกลางเสมอ
-        // ไม่ว่าการ์ดจะกว้างแค่ไหน
+        // เพราะปลายทางเป็นภาพจัตุรัส ถ้าปล่อยให้ยืดเต็มกรอบ วาดวงกลมจะได้วงรี
         var slotGo = new GameObject("DrawSlot", typeof(RectTransform));
-        slotGo.transform.SetParent(panel.transform, false);
+        slotGo.transform.SetParent(right.transform, false);
 
         var slotElement = slotGo.AddComponent<LayoutElement>();
-        // กระดานยิ่งใหญ่ยิ่งวาดง่าย จำกัดด้วยความสูงจอที่อ้างอิงไว้ 1080
-        // การ์ดสูง 990 เหลือขอบบนล่างข้างละ 45 พอดี
-        slotElement.minHeight = 540f;
-        slotElement.preferredHeight = 540f;
+        // กินความสูงที่เหลือทั้งหมดของคอลัมน์ จัตุรัสจึงใหญ่ที่สุดเท่าที่การ์ดให้ได้
+        slotElement.flexibleHeight = 1f;
 
         var areaGo = new GameObject("DrawArea", typeof(Image), typeof(AspectRatioFitter));
         areaGo.transform.SetParent(slotGo.transform, false);
@@ -482,12 +498,7 @@ public static class MagicGameSetup
         StretchToParent(previewGo.GetComponent<RectTransform>());
         var preview = previewGo.GetComponent<RawImage>();
 
-        Text sizeHint = CreateText(panel.transform, "SizeHint",
-            "ลากเมาส์ในกรอบเพื่อวาดตัวละคร", 19, TextColor);
-
-        Button undoButton = CreateButton(panel.transform, "UndoButton", "ลบเส้นล่าสุด");
-        Button clearButton = CreateButton(panel.transform, "ClearButton", "ล้างทั้งหมด");
-        Button confirmButton = CreateButton(panel.transform, "ConfirmProfileButton", "ยืนยัน แล้วไปเข้าห้อง");
+        // ---------- ผูกทุกอย่างเข้าด้วยกัน ----------
 
         var pad = panel.AddComponent<MagicDrawing.ProfileDrawPad>();
         var padSo = new SerializedObject(pad);
@@ -495,6 +506,14 @@ public static class MagicGameSetup
         padSo.FindProperty("preview").objectReferenceValue = preview;
         padSo.FindProperty("sizeHint").objectReferenceValue = sizeHint;
         padSo.ApplyModifiedPropertiesWithoutUndo();
+
+        var livePreview = panel.AddComponent<MagicDrawing.ProfileCharacterPreview>();
+        var liveSo = new SerializedObject(livePreview);
+        liveSo.FindProperty("pad").objectReferenceValue = pad;
+        liveSo.FindProperty("characterImage").objectReferenceValue = previewCharacter;
+        liveSo.FindProperty("nameLabel").objectReferenceValue = previewName;
+        liveSo.FindProperty("nameInput").objectReferenceValue = nameInput;
+        liveSo.ApplyModifiedPropertiesWithoutUndo();
 
         var uiSo = new SerializedObject(ui);
         uiSo.FindProperty("nameInput").objectReferenceValue = nameInput;
@@ -505,6 +524,94 @@ public static class MagicGameSetup
         uiSo.ApplyModifiedPropertiesWithoutUndo();
 
         return panel;
+    }
+
+    /// <summary>เปลี่ยนการ์ดจากเรียงลงล่างเป็นเรียงข้าง</summary>
+    private static void MakeHorizontal(GameObject panel, float spacing)
+    {
+        var oldLayout = panel.GetComponent<VerticalLayoutGroup>();
+        RectOffset padding = oldLayout != null ? oldLayout.padding : new RectOffset(28, 28, 24, 24);
+        if (oldLayout != null) Object.DestroyImmediate(oldLayout);
+
+        var layout = panel.AddComponent<HorizontalLayoutGroup>();
+        layout.padding = padding;
+        layout.spacing = spacing;
+        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        // ความกว้างคุมเองผ่าน LayoutElement ของแต่ละคอลัมน์
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = true;
+    }
+
+    /// <summary>คอลัมน์หนึ่งช่องในการ์ด เรียงของลงล่างตามปกติ</summary>
+    private static GameObject CreateColumn(Transform parent, string name, float width, float flexible)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+
+        var layout = go.AddComponent<VerticalLayoutGroup>();
+        layout.spacing = 12f;
+        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+
+        var element = go.AddComponent<LayoutElement>();
+        if (width > 0f) element.preferredWidth = width;
+        element.flexibleWidth = flexible;
+
+        return go;
+    }
+
+    /// <summary>
+    /// กรอบตัวอย่างที่จำลองหน้าตาในสนามรบ ป้ายชื่อเหนือหัวและตัวละครยืนบนพื้น
+    /// ไม่ได้จำลองฉากจริง แค่ให้เห็นสัดส่วนและชื่อคู่กันว่าอ่านออกไหม
+    /// </summary>
+    private static RawImage CreateGamePreview(Transform parent, out Text nameLabel)
+    {
+        var frame = new GameObject("GamePreview", typeof(Image));
+        frame.transform.SetParent(parent, false);
+        frame.GetComponent<Image>().color = new Color(0.10f, 0.12f, 0.17f);
+
+        var element = frame.AddComponent<LayoutElement>();
+        element.minHeight = 280f;
+        element.preferredHeight = 280f;
+
+        // ป้ายชื่อติดขอบบน
+        nameLabel = CreateText(frame.transform, "NameLabel", "ผู้เล่น", 22, AccentColor, FontStyle.Bold);
+        var nameRect = nameLabel.GetComponent<RectTransform>();
+        nameRect.anchorMin = new Vector2(0f, 1f);
+        nameRect.anchorMax = new Vector2(1f, 1f);
+        nameRect.pivot = new Vector2(0.5f, 1f);
+        nameRect.sizeDelta = new Vector2(0f, 32f);
+        nameRect.anchoredPosition = new Vector2(0f, -12f);
+
+        // เส้นพื้นให้รู้ว่าตัวละครยืนอยู่ตรงไหน
+        var ground = new GameObject("GroundLine", typeof(Image));
+        ground.transform.SetParent(frame.transform, false);
+        ground.GetComponent<Image>().color = new Color(0.30f, 0.34f, 0.42f);
+
+        var groundRect = ground.GetComponent<RectTransform>();
+        groundRect.anchorMin = new Vector2(0.12f, 0f);
+        groundRect.anchorMax = new Vector2(0.88f, 0f);
+        groundRect.pivot = new Vector2(0.5f, 0f);
+        groundRect.sizeDelta = new Vector2(0f, 3f);
+        groundRect.anchoredPosition = new Vector2(0f, 22f);
+
+        // ตัวละครยืนบนเส้นพื้น เป็นจัตุรัสเหมือนภาพที่ใช้ในเกมจริง
+        var characterGo = new GameObject("Character", typeof(RawImage));
+        characterGo.transform.SetParent(frame.transform, false);
+
+        var characterRect = characterGo.GetComponent<RectTransform>();
+        characterRect.anchorMin = new Vector2(0.5f, 0f);
+        characterRect.anchorMax = new Vector2(0.5f, 0f);
+        characterRect.pivot = new Vector2(0.5f, 0f);
+        characterRect.sizeDelta = new Vector2(190f, 190f);
+        characterRect.anchoredPosition = new Vector2(0f, 25f);
+
+        return characterGo.GetComponent<RawImage>();
     }
 
     /// <summary>

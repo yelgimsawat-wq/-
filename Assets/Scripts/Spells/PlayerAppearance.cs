@@ -74,10 +74,19 @@ namespace MagicDrawing
             base.OnNetworkDespawn();
         }
 
-        private void OnDestroy()
+        /// <summary>
+        /// ต้องใส่ override และเรียก base ด้วย
+        ///
+        /// NetworkBehaviour มี OnDestroy ของตัวเองที่ถอนทะเบียนตัวเองออกจาก
+        /// ระบบเครือข่ายตอนถูกทำลาย ถ้าเขียนทับเฉย ๆ โดยไม่ใส่ override
+        /// เมธอดของเราจะบังของเดิม งานถอนทะเบียนไม่ได้ทำ แล้วจะมีของค้างในระบบ
+        /// จนขึ้น error ตอนเปลี่ยนซีนหรือออกจากห้อง
+        /// </summary>
+        public override void OnDestroy()
         {
             // Sprite ที่สร้างเองพร้อม Texture ข้างในต้องทำลายเอง ไม่งั้นรั่ว
             DestroyGenerated();
+            base.OnDestroy();
         }
 
         /// <summary>ส่งชื่อและรูปที่ตั้งไว้ในเมนูขึ้นไปให้คนอื่นเห็น</summary>
