@@ -154,7 +154,14 @@ public static class MagicGameSetup
         var vfxLibrary = go.AddComponent<SpellVfxLibrary>();
         WireAssetLibraries(audioLibrary, vfxLibrary);
 
-        BuildMenuCanvas(ui, go.transform);
+        Text matchBanner = BuildMenuCanvas(ui, go.transform);
+
+        // ตัวจัดการรอบต้องอยู่ตัวเดียวกับ NetworkManager จะได้ข้ามซีนไปด้วย
+        // และมีตัวเดียวในเกมเสมอ
+        var match = go.AddComponent<MatchManager>();
+        var matchSo = new SerializedObject(match);
+        matchSo.FindProperty("banner").objectReferenceValue = matchBanner;
+        matchSo.ApplyModifiedPropertiesWithoutUndo();
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, LobbyScenePath);
@@ -302,7 +309,7 @@ public static class MagicGameSetup
     /// object นั้น Canvas จึงข้ามซีนไปด้วย ถ้าวางแยกไว้ในซีนเมนู มันจะถูกทำลาย
     /// ตอนโหลดสนามรบ แล้วแถบย่อที่ควรโชว์รหัสห้องจะหายไป
     /// </summary>
-    private static void BuildMenuCanvas(OnlineUI2D ui, Transform parent)
+    private static Text BuildMenuCanvas(OnlineUI2D ui, Transform parent)
     {
         var canvasGo = new GameObject("MenuCanvas",
             typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
@@ -368,6 +375,29 @@ public static class MagicGameSetup
         WireMenuUI(ui, joinPanel, roomPanel, compactPanel, codeInput,
             hostButton, joinButton, roleText, roomCodeText, playersText, waitText,
             copyButton, startButton, leaveButton, compactText, compactLeave, statusText);
+
+        return CreateMatchBanner(canvasGo.transform);
+    }
+
+    /// <summary>
+    /// ป้ายประกาศผลกลางบนจอ ใช้บอกผู้ชนะและสถานะการดูคนอื่นตอนตกรอบ
+    /// วางบนสุดเพราะเป็นข้อความสำคัญที่สุดในจอตอนจบรอบ
+    /// แต่ไม่วางกลางจอเป๊ะ ๆ เพราะจะบังพื้นที่ที่ผู้เล่นใช้วาดเวท
+    /// </summary>
+    private static Text CreateMatchBanner(Transform canvas)
+    {
+        Text banner = CreateText(canvas, "MatchBanner", "", 40, AccentColor, FontStyle.Bold);
+
+        var rect = banner.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 1f);
+        rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.anchoredPosition = new Vector2(0f, -60f);
+        rect.sizeDelta = new Vector2(1100f, 70f);
+
+        Object.DestroyImmediate(banner.GetComponent<LayoutElement>());
+
+        return banner;
     }
 
     private static void WireMenuUI(

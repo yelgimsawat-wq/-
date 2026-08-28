@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -19,8 +18,6 @@ namespace MagicDrawing
     {
         [SerializeField] private int maxHp = 100;
 
-        [Tooltip("ตายแล้วรอกี่วินาทีถึงจะเกิดใหม่")]
-        [SerializeField] private float respawnDelay = 3f;
 
         [Tooltip("โดนเวทที่โล่กันได้ จะเหลือดาเมจกี่เปอร์เซ็นต์")]
         [Range(0f, 1f)]
@@ -34,12 +31,24 @@ namespace MagicDrawing
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
 
+        /// <summary>
+        /// ตกรอบแล้วหรือยัง ต้องเป็น NetworkVariable เพราะกล้องของคนที่ตายแล้ว
+        /// ต้องรู้ว่าใครยังรอดอยู่บ้างเพื่อไปตามดู
+        /// </summary>
+        private readonly NetworkVariable<bool> eliminated = new NetworkVariable<bool>(
+            false,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
         private Vector3 spawnPosition;
         private NetworkPlayer2D player;
 
         public int CurrentHp => currentHp.Value;
         public int MaxHp => maxHp;
         public bool IsDead => currentHp.Value <= 0;
+
+        /// <summary>ตกรอบแล้ว รอรอบใหม่ ระหว่างนี้ดูคนอื่นเล่นได้</summary>
+        public bool IsEliminated => eliminated.Value;
 
         /// <summary>แจ้งเมื่อเลือดเปลี่ยน ใช้ผูก UI ภายนอกได้</summary>
         public event Action<int, int> HealthChanged;
@@ -56,7 +65,14 @@ namespace MagicDrawing
             currentHp.OnValueChanged += HandleHpChanged;
             spawnPosition = transform.position;
 
-            if (IsServer) currentHp.Value = maxHp;
+            if (IsServer)
+            {
+                currentHp.Value = maxHp;
+                eliminated.Value = false;
+
+                // แจ้งให้ตัวจัดการรอบทบทวนว่าคนครบพอจะเริ่มสู้แล้วหรือยัง
+                if (MatchManager.Instance != null) MatchManager.Instance.ReportSpawned();
+            }
         }
 
         public override void OnNetworkDespawn()
@@ -102,7 +118,7 @@ namespace MagicDrawing
 
             PlayHitSoundClientRpc((byte)attackElement, shield != null && finalDamage < baseDamage);
 
-            if (currentHp.Value <= 0) StartCoroutine(HandleDeath());
+            if (currentHp.Value <= 0) HandleDeath();
         }
 
         /// <summary>ให้ทุกเครื่องเก็บภาพโล่ที่แตกไปพร้อมกัน</summary>
@@ -142,13 +158,29 @@ namespace MagicDrawing
                 blocked ? 5 : 12, blocked ? 2f : 5.5f, 0.45f, blocked ? 0.3f : 0.5f);
         }
 
-        private IEnumerator HandleDeath()
+        /// <summary>
+        /// ตายแล้วตกรอบเลย ไม่เกิดใหม่เอง
+        /// ตัวจัดการรอบเป็นคนตัดสินว่าเมื่อไรจะปลุกทุกคนกลับมา
+        /// ถ้าให้เกิดใหม่เองอัตโนมัติจะไม่มีวันรู้ผลแพ้ชนะ
+        /// </summary>
+        private void HandleDeath()
         {
+            eliminated.Value = true;
+
             PlayDeathSoundClientRpc();
             SetVisibleClientRpc(false);
-            yield return new WaitForSeconds(respawnDelay);
 
+            if (MatchManager.Instance != null) MatchManager.Instance.ReportElimination(this);
+        }
+
+        /// <summary>ปลุกกลับมาเล่นรอบใหม่ เรียกจาก MatchManager ฝั่ง Server</summary>
+        public void ReviveServer()
+        {
+            if (!IsServer) return;
+
+            eliminated.Value = false;
             currentHp.Value = maxHp;
+
             TeleportClientRpc(spawnPosition);
             SetVisibleClientRpc(true);
         }
