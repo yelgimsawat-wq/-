@@ -241,6 +241,7 @@ public class NetworkPlayer2D : NetworkBehaviour
             velocity.y = jumpSpeed;
             // กันกระโดดซ้ำทันทีในเฟรมถัดไปตอนที่ยังไม่ทันลอยพ้นพื้น
             lastGroundedTime = float.NegativeInfinity;
+            MagicDrawing.SpellAudio.Play(MagicDrawing.SpellSound.Jump, transform.position);
         }
         jumpRequested = false;
 

@@ -135,6 +135,10 @@ public static class MagicGameSetup
 
         go.AddComponent<OnlineUI2D>();
 
+        // ไว้บนตัวเดียวกับ NetworkManager เพราะมันตามข้ามซีนไปด้วย
+        // เสียงจึงตั้งค่าครั้งเดียวใช้ได้ทั้งห้องรอและสนามรบ
+        go.AddComponent<SpellAudioLibrary>();
+
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, LobbyScenePath);
     }

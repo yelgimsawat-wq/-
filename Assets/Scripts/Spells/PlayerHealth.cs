@@ -100,6 +100,8 @@ namespace MagicDrawing
             finalDamage = Mathf.Max(finalDamage, 0);
             currentHp.Value = Mathf.Max(0, currentHp.Value - finalDamage);
 
+            PlayHitSoundClientRpc((byte)attackElement, shield != null && finalDamage < baseDamage);
+
             if (currentHp.Value <= 0) StartCoroutine(HandleDeath());
         }
 
@@ -109,10 +111,32 @@ namespace MagicDrawing
         {
             SpellShield shield = SpellShield.FindActiveOn(transform);
             if (shield != null) Destroy(shield.gameObject);
+
+            SpellAudio.Play(SpellSound.ShieldBreak, transform.position);
+        }
+
+        /// <summary>
+        /// เสียงตอนโดน ต้องส่งเป็น RPC เพราะการคิดดาเมจเกิดบน Server เท่านั้น
+        /// ถ้าเล่นเสียงตรงนั้นเลย จะมีแค่เครื่อง Host ที่ได้ยิน
+        /// </summary>
+        [ClientRpc]
+        private void PlayDeathSoundClientRpc()
+        {
+            SpellAudio.Play(SpellSound.Death, transform.position);
+        }
+
+        [ClientRpc]
+        private void PlayHitSoundClientRpc(byte elementId, bool blocked)
+        {
+            SpellAudio.Play(
+                blocked ? SpellSound.Blocked : SpellSound.Hit,
+                transform.position,
+                SpellElementExtensions.FromNetworkId(elementId));
         }
 
         private IEnumerator HandleDeath()
         {
+            PlayDeathSoundClientRpc();
             SetVisibleClientRpc(false);
             yield return new WaitForSeconds(respawnDelay);
 

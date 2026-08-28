@@ -81,6 +81,7 @@ namespace MagicDrawing
 
         private SpellCaster caster;
         private NetworkPlayer2D player;
+        private SpellPower voicePower;
 
         private CastPhase phase = CastPhase.Idle;
 
@@ -100,6 +101,7 @@ namespace MagicDrawing
         {
             caster = GetComponent<SpellCaster>();
             player = GetComponent<NetworkPlayer2D>();
+            voicePower = GetComponent<SpellPower>();
             if (drawCamera == null) drawCamera = Camera.main;
         }
 
@@ -158,6 +160,9 @@ namespace MagicDrawing
                 statusMessage = $"เขียนได้มากสุด {maxStrokes} ขีด กด Space ยืนยันหรือ Esc ล้าง";
                 return;
             }
+
+            // เริ่มจับความดังตั้งแต่ขีดแรก ผู้เล่นจึงตะโกนตอนไหนของการวาดก็ได้
+            if (phase == CastPhase.Idle && voicePower != null) voicePower.StartCapture();
 
             isPressing = true;
             phase = CastPhase.Composing;
@@ -386,6 +391,9 @@ namespace MagicDrawing
             currentStroke.Clear();
             activeLine = null;
             HideAimArrow();
+
+            // หยุดจับความดัง แต่ค่าที่จับได้ยังอ่านได้ เพราะ SpellCaster อ่านทีหลัง
+            if (voicePower != null) voicePower.StopCapture();
         }
 
         /// <summary>

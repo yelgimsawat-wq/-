@@ -132,7 +132,10 @@ namespace MagicDrawing
         private byte SampleVoicePower()
         {
             var power = GetComponent<SpellPower>();
-            float value = power != null ? power.CurrentPower : 0f;
+
+            // ใช้ค่าสูงสุดตลอดช่วงที่เขียนคาถา ไม่ใช่ค่า ณ วินาทีที่กดยิง
+            // เพราะผู้เล่นตะโกนตอนวาดแล้วมักเงียบไปแล้วตอนกดยืนยัน
+            float value = power != null ? power.PeakPower : 0f;
             return (byte)Mathf.RoundToInt(Mathf.Clamp01(value) * 255f);
         }
 
@@ -200,6 +203,8 @@ namespace MagicDrawing
             // ให้เฉพาะ Server เท่านั้นที่คิดดาเมจ เครื่องผู้เล่นสร้างลูกเวทเหมือนกัน
             // แต่เป็นภาพล้วน ๆ ถ้าปล่อยให้ทุกเครื่องคิด ยิงทีเดียวจะโดนหลายครั้ง
             projectile.Launch(aim, element, IsServer, damage, transform);
+
+            SpellAudio.Play(SpellSound.Cast, origin, element);
         }
 
         /// <summary>
@@ -254,6 +259,8 @@ namespace MagicDrawing
 
             shield.Configure(shieldScale, shieldDuration);
             shield.Play(element);
+
+            SpellAudio.Play(SpellSound.Shield, transform.position, element);
         }
 
         // ---------- เส้นที่อีกฝ่ายกำลังวาด ----------

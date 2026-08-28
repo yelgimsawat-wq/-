@@ -46,6 +46,35 @@ namespace MagicDrawing
         private bool externalSource;
         private float rawLoudness;
 
+        private bool capturing;
+        private bool hasCaptured;
+        private float peakPower;
+
+        /// <summary>
+        /// ความดังสูงสุดตลอดช่วงที่เขียนคาถา
+        ///
+        /// ต้องใช้ค่าสูงสุด ไม่ใช่ค่า ณ วินาทีที่กดยิง เพราะผู้เล่นตะโกนตอนวาด
+        /// แล้วมักจะเงียบไปแล้วตอนกดยืนยัน ถ้าอ่านตอนยิงจะได้ดาเมจต่ำทุกครั้ง
+        /// ทั้งที่ตะโกนสุดเสียง
+        ///
+        /// ถ้ายังไม่เคยเริ่มจับ จะคืนค่าปัจจุบันแทน
+        /// </summary>
+        public float PeakPower => hasCaptured ? peakPower : CurrentPower;
+
+        /// <summary>เริ่มจับความดัง เรียกตอนผู้เล่นเริ่มเขียนคาถา</summary>
+        public void StartCapture()
+        {
+            capturing = true;
+            hasCaptured = true;
+            peakPower = 0f;
+        }
+
+        /// <summary>หยุดจับ เรียกตอนยิงหรือยกเลิก ค่าที่จับได้ยังอ่านได้อยู่</summary>
+        public void StopCapture()
+        {
+            capturing = false;
+        }
+
         /// <summary>ความแรงตอนนี้ 0 = เงียบ, 1 = ดังเต็มที่</summary>
         public float CurrentPower => HasAudioSource ? smoothedPower : fallbackPower;
 
@@ -134,6 +163,8 @@ namespace MagicDrawing
 
             // ค่าดิบจากไมค์กระโดดแรงมากทุกเฟรม ต้องหน่วงก่อนไม่งั้นหลอดจะสั่น
             smoothedPower = Mathf.Lerp(smoothedPower, target, smoothing * Time.deltaTime);
+
+            if (capturing && smoothedPower > peakPower) peakPower = smoothedPower;
         }
 
         /// <summary>
@@ -180,11 +211,24 @@ namespace MagicDrawing
             var barBack = new Rect(box.x + 8f, box.y + 28f, box.width - 16f, 14f);
             GUI.Box(barBack, GUIContent.none);
 
-            // หลอดจริงยาวตามความดัง
-            var barFill = new Rect(barBack.x, barBack.y, barBack.width * CurrentPower, barBack.height);
             Color previous = GUI.color;
+
+            // หลอดจริงยาวตามความดังตอนนี้
+            var barFill = new Rect(barBack.x, barBack.y, barBack.width * CurrentPower, barBack.height);
             GUI.color = Color.Lerp(Color.cyan, Color.red, CurrentPower);
             GUI.Box(barFill, GUIContent.none);
+
+            // ขีดค้างที่ค่าสูงสุดตอนกำลังเขียนคาถา
+            // ผู้เล่นต้องเห็นว่าตะโกนไปแล้วได้เท่าไร เพราะนั่นคือค่าที่จะกลายเป็นดาเมจ
+            // ถ้าเห็นแค่ค่าปัจจุบันจะไม่รู้เลยว่าที่ตะโกนไปเมื่อกี้ติดหรือเปล่า
+            if (capturing && peakPower > 0.01f)
+            {
+                var peakMark = new Rect(
+                    barBack.x + barBack.width * peakPower - 1f, barBack.y - 2f, 2f, barBack.height + 4f);
+                GUI.color = Color.yellow;
+                GUI.Box(peakMark, GUIContent.none);
+            }
+
             GUI.color = previous;
         }
     }
