@@ -8,6 +8,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 /// <summary>
 /// ติดตั้งฉากเกมวาดวงเวทให้อัตโนมัติ
@@ -145,11 +146,13 @@ public static class MagicGameSetup
         spawnerSo.FindProperty("gameSceneName").stringValue = GameSceneName;
         spawnerSo.ApplyModifiedPropertiesWithoutUndo();
 
-        go.AddComponent<OnlineUI2D>();
+        var ui = go.AddComponent<OnlineUI2D>();
 
         // ไว้บนตัวเดียวกับ NetworkManager เพราะมันตามข้ามซีนไปด้วย
         // เสียงจึงตั้งค่าครั้งเดียวใช้ได้ทั้งห้องรอและสนามรบ
         go.AddComponent<SpellAudioLibrary>();
+
+        BuildMenuCanvas(ui, go.transform);
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, LobbyScenePath);
@@ -175,6 +178,248 @@ public static class MagicGameSetup
         }
 
         EditorBuildSettings.scenes = scenes.ToArray();
+    }
+
+    // ---------- หน้าเมนู (Canvas) ----------
+
+    private static readonly Color PanelColor = new Color(0.09f, 0.10f, 0.16f, 0.96f);
+    private static readonly Color AccentColor = new Color(0.42f, 0.72f, 1f);
+    private static readonly Color TextColor = new Color(0.88f, 0.90f, 0.94f);
+    private static readonly Color ButtonColor = new Color(0.20f, 0.24f, 0.34f);
+
+    /// <summary>
+    /// สร้าง Canvas ของเมนูแล้วผูก reference เข้ากับ OnlineUI2D
+    ///
+    /// วางเป็นลูกของ NetworkManager เพราะ Netcode สั่ง DontDestroyOnLoad ให้
+    /// object นั้น Canvas จึงข้ามซีนไปด้วย ถ้าวางแยกไว้ในซีนเมนู มันจะถูกทำลาย
+    /// ตอนโหลดสนามรบ แล้วแถบย่อที่ควรโชว์รหัสห้องจะหายไป
+    /// </summary>
+    private static void BuildMenuCanvas(OnlineUI2D ui, Transform parent)
+    {
+        var canvasGo = new GameObject("MenuCanvas",
+            typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        canvasGo.transform.SetParent(parent, false);
+
+        var canvas = canvasGo.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 100;
+
+        var scaler = canvasGo.GetComponent<CanvasScaler>();
+        // สเกลตามความละเอียดจอ เมนูจึงมีสัดส่วนเท่ากันทุกจอ
+        // ต่างจาก OnGUI ที่ขนาดคงที่เป็นพิกเซล จอใหญ่แล้วปุ่มจะจิ๋ว
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.matchWidthOrHeight = 0.5f;
+
+        GameObject joinPanel = CreatePanel(canvasGo.transform, "JoinPanel", new Vector2(560f, 520f));
+        GameObject roomPanel = CreatePanel(canvasGo.transform, "RoomPanel", new Vector2(560f, 620f));
+
+        // ---- หน้าเข้าห้อง ----
+        CreateText(joinPanel.transform, "Title", "วงเวทออนไลน์", 46, AccentColor, FontStyle.Bold);
+        CreateText(joinPanel.transform, "Subtitle",
+            "สร้างห้องแล้วส่งรหัสให้เพื่อน หรือใส่รหัสที่ได้รับ", 20, TextColor);
+
+        Button hostButton = CreateButton(joinPanel.transform, "HostButton", "สร้างห้องใหม่");
+        CreateText(joinPanel.transform, "OrLabel", "— หรือ —", 20, TextColor);
+        InputField codeInput = CreateInput(joinPanel.transform, "CodeInput", "ใส่รหัสห้อง");
+        Button joinButton = CreateButton(joinPanel.transform, "JoinButton", "เข้าห้องด้วยรหัส");
+
+        // ---- หน้าในห้อง ----
+        Text roleText = CreateText(roomPanel.transform, "RoleText", "คุณเป็นเจ้าของห้อง", 26, AccentColor, FontStyle.Bold);
+        CreateText(roomPanel.transform, "CodeCaption", "รหัสห้อง", 20, TextColor);
+
+        // รหัสห้องตัวใหญ่พิเศษ เพราะเป็นข้อความที่ต้องอ่านให้เพื่อนฟังทางโทรศัพท์
+        Text roomCodeText = CreateText(roomPanel.transform, "RoomCodeText", "ABCDEF", 52, Color.white, FontStyle.Bold);
+
+        Button copyButton = CreateButton(roomPanel.transform, "CopyButton", "คัดลอกรหัส");
+        Text playersText = CreateText(roomPanel.transform, "PlayersText", "ผู้เล่นในห้อง 1 / 4 คน", 22, TextColor);
+        Button startButton = CreateButton(roomPanel.transform, "StartButton", "เริ่มเกม");
+        Text waitText = CreateText(roomPanel.transform, "WaitText", "รอเจ้าของห้องกดเริ่มเกม...", 22, TextColor);
+        Button leaveButton = CreateButton(roomPanel.transform, "LeaveButton", "ออกจากห้อง");
+
+        // ---- แถบย่อตอนอยู่ในสนามรบ ----
+        GameObject compactPanel = CreatePanel(canvasGo.transform, "CompactPanel", new Vector2(340f, 130f));
+        var compactRect = compactPanel.GetComponent<RectTransform>();
+        compactRect.anchorMin = new Vector2(0f, 1f);
+        compactRect.anchorMax = new Vector2(0f, 1f);
+        compactRect.pivot = new Vector2(0f, 1f);
+        compactRect.anchoredPosition = new Vector2(24f, -24f);
+
+        Text compactText = CreateText(compactPanel.transform, "CompactText", "ห้อง -   ผู้เล่น 0", 20, TextColor);
+        Button compactLeave = CreateButton(compactPanel.transform, "CompactLeaveButton", "ออกจากห้อง");
+
+        // ---- แถบสถานะล่างจอ ----
+        Text statusText = CreateText(canvasGo.transform, "StatusText", "", 22, TextColor);
+        var statusRect = statusText.GetComponent<RectTransform>();
+        statusRect.anchorMin = new Vector2(0.5f, 0f);
+        statusRect.anchorMax = new Vector2(0.5f, 0f);
+        statusRect.pivot = new Vector2(0.5f, 0f);
+        statusRect.anchoredPosition = new Vector2(0f, 40f);
+        statusRect.sizeDelta = new Vector2(900f, 40f);
+
+        WireMenuUI(ui, joinPanel, roomPanel, compactPanel, codeInput,
+            hostButton, joinButton, roleText, roomCodeText, playersText, waitText,
+            copyButton, startButton, leaveButton, compactText, compactLeave, statusText);
+    }
+
+    private static void WireMenuUI(
+        OnlineUI2D ui,
+        GameObject joinPanel, GameObject roomPanel, GameObject compactPanel,
+        InputField codeInput, Button hostButton, Button joinButton,
+        Text roleText, Text roomCodeText, Text playersText, Text waitText,
+        Button copyButton, Button startButton, Button leaveButton,
+        Text compactText, Button compactLeave, Text statusText)
+    {
+        var so = new SerializedObject(ui);
+
+        so.FindProperty("joinPanel").objectReferenceValue = joinPanel;
+        so.FindProperty("roomPanel").objectReferenceValue = roomPanel;
+        so.FindProperty("compactPanel").objectReferenceValue = compactPanel;
+        so.FindProperty("codeInput").objectReferenceValue = codeInput;
+        so.FindProperty("hostButton").objectReferenceValue = hostButton;
+        so.FindProperty("joinButton").objectReferenceValue = joinButton;
+        so.FindProperty("roleText").objectReferenceValue = roleText;
+        so.FindProperty("roomCodeText").objectReferenceValue = roomCodeText;
+        so.FindProperty("playersText").objectReferenceValue = playersText;
+        so.FindProperty("waitText").objectReferenceValue = waitText;
+        so.FindProperty("copyButton").objectReferenceValue = copyButton;
+        so.FindProperty("startButton").objectReferenceValue = startButton;
+        so.FindProperty("leaveButton").objectReferenceValue = leaveButton;
+        so.FindProperty("compactText").objectReferenceValue = compactText;
+        so.FindProperty("compactLeaveButton").objectReferenceValue = compactLeave;
+        so.FindProperty("statusText").objectReferenceValue = statusText;
+        so.FindProperty("gameSceneName").stringValue = GameSceneName;
+
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>
+    /// การ์ดกลางจอ ใช้ VerticalLayoutGroup เรียงของข้างในให้อัตโนมัติ
+    /// จะได้ไม่ต้องมานั่งคำนวณตำแหน่งทีละชิ้น และเพิ่ม/ลบชิ้นได้โดยไม่ต้องขยับของอื่น
+    /// </summary>
+    private static GameObject CreatePanel(Transform parent, string name, Vector2 size)
+    {
+        var go = new GameObject(name, typeof(Image), typeof(VerticalLayoutGroup));
+        go.transform.SetParent(parent, false);
+
+        go.GetComponent<Image>().color = PanelColor;
+
+        var rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = size;
+        rect.anchoredPosition = Vector2.zero;
+
+        var layout = go.GetComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(28, 28, 24, 24);
+        layout.spacing = 12f;
+        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+        layout.childControlWidth = true;
+        layout.childControlHeight = false;
+
+        return go;
+    }
+
+    private static Text CreateText(
+        Transform parent, string name, string content, int fontSize, Color color,
+        FontStyle style = FontStyle.Normal)
+    {
+        var go = new GameObject(name, typeof(Text));
+        go.transform.SetParent(parent, false);
+
+        var text = go.GetComponent<Text>();
+        text.text = content;
+        text.fontSize = fontSize;
+        text.color = color;
+        text.fontStyle = style;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.horizontalOverflow = HorizontalWrapMode.Wrap;
+        text.verticalOverflow = VerticalWrapMode.Overflow;
+
+        // ฟอนต์ตั้งตอนรันไทม์โดย OnlineUI2D เพราะต้องหาฟอนต์ที่มีอักขระไทย
+        // จากเครื่องผู้เล่น ฟอนต์เริ่มต้นของ uGUI ไม่มีภาษาไทย
+
+        go.GetComponent<RectTransform>().sizeDelta = new Vector2(0f, fontSize + 14f);
+
+        var element = go.AddComponent<LayoutElement>();
+        element.minHeight = fontSize + 14f;
+        element.preferredHeight = fontSize + 14f;
+
+        return text;
+    }
+
+    private static Button CreateButton(Transform parent, string name, string label)
+    {
+        var go = new GameObject(name, typeof(Image), typeof(Button));
+        go.transform.SetParent(parent, false);
+
+        var image = go.GetComponent<Image>();
+        image.color = ButtonColor;
+
+        var button = go.GetComponent<Button>();
+        button.targetGraphic = image;
+
+        // สีตอนชี้และตอนกดต่างจากปกติชัดเจน ผู้เล่นจะได้รู้ว่ากดติดแล้ว
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(1.35f, 1.35f, 1.35f);
+        colors.pressedColor = new Color(0.75f, 0.75f, 0.75f);
+        colors.disabledColor = new Color(0.5f, 0.5f, 0.5f, 0.6f);
+        button.colors = colors;
+
+        var element = go.AddComponent<LayoutElement>();
+        element.minHeight = 56f;
+        element.preferredHeight = 56f;
+
+        Text text = CreateText(go.transform, "Label", label, 22, Color.white);
+        StretchToParent(text.GetComponent<RectTransform>());
+        Object.DestroyImmediate(text.GetComponent<LayoutElement>());
+
+        return button;
+    }
+
+    private static InputField CreateInput(Transform parent, string name, string placeholder)
+    {
+        var go = new GameObject(name, typeof(Image), typeof(InputField));
+        go.transform.SetParent(parent, false);
+
+        go.GetComponent<Image>().color = new Color(0.16f, 0.18f, 0.26f);
+
+        var element = go.AddComponent<LayoutElement>();
+        element.minHeight = 60f;
+        element.preferredHeight = 60f;
+
+        Text placeholderText = CreateText(go.transform, "Placeholder", placeholder, 24,
+            new Color(0.55f, 0.58f, 0.66f));
+        Text valueText = CreateText(go.transform, "Text", "", 28, Color.white, FontStyle.Bold);
+
+        foreach (Text t in new[] { placeholderText, valueText })
+        {
+            StretchToParent(t.GetComponent<RectTransform>());
+            Object.DestroyImmediate(t.GetComponent<LayoutElement>());
+        }
+
+        // InputField ต้องการ Text ที่ไม่ตัดบรรทัด ไม่งั้นตัวอักษรจะหายตอนพิมพ์ยาว
+        valueText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        valueText.supportRichText = false;
+
+        var input = go.GetComponent<InputField>();
+        input.textComponent = valueText;
+        input.placeholder = placeholderText;
+        input.characterLimit = 10;
+
+        return input;
+    }
+
+    private static void StretchToParent(RectTransform rect)
+    {
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = new Vector2(12f, 6f);
+        rect.offsetMax = new Vector2(-12f, -6f);
     }
 
     // ---------- ภาพวงเวท ----------

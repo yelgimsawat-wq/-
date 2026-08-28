@@ -6,12 +6,13 @@ using Unity.Services.Core;
 using Unity.Services.Multiplayer;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 /// <summary>
 /// เมนูสร้างห้อง/เข้าห้องแบบเล่นออนไลน์ข้ามอินเทอร์เน็ตได้จริง
 ///
-/// วิธีใช้: แปะสคริปต์นี้กับ GameObject เปล่าในฉาก แล้วกด Play — ปุ่มจะขึ้นเอง
-/// ไม่ต้องลาก reference อะไรเลย เพราะวาดด้วย OnGUI
+/// หน้าตาเป็น Canvas (uGUI) จริง ไม่ใช่ OnGUI แล้ว
+/// สคริปต์ติดตั้งอัตโนมัติสร้าง Canvas และผูก reference ให้ครบ
 ///
 /// ใช้ Sessions API ของ Unity ซึ่งจัดการ Relay ให้เอง (Relay คือเซิร์ฟเวอร์ฝากส่ง
 /// ข้อมูลของ Unity ทำให้ไม่ต้องเปิดพอร์ตเราเตอร์ เพื่อนที่อยู่คนละบ้านก็เข้าได้)
@@ -184,202 +185,190 @@ public class OnlineUI2D : MonoBehaviour
         busy = false;
     }
 
-    // ---------- หน้าตา ----------
+    // ---------- หน้าตา (Canvas) ----------
     //
-    // ทำด้วย IMGUI ทั้งหมดโดยตั้งใจ ไม่ใช้ Canvas เพราะ Canvas ต้องสร้าง
-    // GameObject หลายชั้นและลาก reference ผูกกันเยอะ ซึ่งพังง่ายเวลาลบของผิด
-    // แบบนี้อยู่ในไฟล์เดียว แก้สีแก้ขนาดได้ที่เดียว และไม่มีอะไรให้ลบหาย
+    // เปลี่ยนจาก OnGUI มาเป็น uGUI จริง เพราะ OnGUI จัดสรรหน่วยความจำใหม่ทุกเฟรม
+    // ไม่สเกลตามความละเอียดจอ ทำปุ่มสวย ๆ หรือใส่ภาพไม่ได้ และรองรับการสัมผัสแย่
+    //
+    // reference ทั้งหมดผูกโดยสคริปต์ติดตั้งอัตโนมัติ ไม่ต้องลากเอง
+    // ปล่อยว่างไว้ก็ไม่ error แค่ส่วนนั้นจะไม่ทำงาน
 
-    private static readonly Color PanelColor = new Color(0.09f, 0.10f, 0.16f, 0.96f);
-    private static readonly Color AccentColor = new Color(0.42f, 0.72f, 1f);
+    [Header("กลุ่มหน้าจอ")]
+    [SerializeField] private GameObject joinPanel;
+    [SerializeField] private GameObject roomPanel;
+    [SerializeField] private GameObject compactPanel;
 
-    private GUIStyle titleStyle;
-    private GUIStyle headingStyle;
-    private GUIStyle bodyStyle;
-    private GUIStyle codeStyle;
-    private GUIStyle buttonStyle;
-    private GUIStyle inputStyle;
-    private Texture2D panelTexture;
+    [Header("หน้าเข้าห้อง")]
+    [SerializeField] private InputField codeInput;
+    [SerializeField] private Button hostButton;
+    [SerializeField] private Button joinButton;
 
-    private void BuildStyles()
+    [Header("หน้าในห้อง")]
+    [SerializeField] private Text roleText;
+    [SerializeField] private Text roomCodeText;
+    [SerializeField] private Text playersText;
+    [SerializeField] private Text waitText;
+    [SerializeField] private Button copyButton;
+    [SerializeField] private Button startButton;
+    [SerializeField] private Button leaveButton;
+
+    [Header("แถบย่อตอนอยู่ในเกม")]
+    [SerializeField] private Text compactText;
+    [SerializeField] private Button compactLeaveButton;
+
+    [Header("อื่น ๆ")]
+    [SerializeField] private Text statusText;
+
+    private void Awake()
     {
-        if (titleStyle != null) return;
+        ApplyThaiFont();
 
-        panelTexture = new Texture2D(1, 1);
-        panelTexture.SetPixel(0, 0, PanelColor);
-        panelTexture.Apply();
+        if (hostButton != null) hostButton.onClick.AddListener(OnHostClicked);
+        if (joinButton != null) joinButton.onClick.AddListener(OnJoinClicked);
+        if (copyButton != null) copyButton.onClick.AddListener(OnCopyClicked);
+        if (startButton != null) startButton.onClick.AddListener(StartGame);
+        if (leaveButton != null) leaveButton.onClick.AddListener(OnLeaveClicked);
+        if (compactLeaveButton != null) compactLeaveButton.onClick.AddListener(OnLeaveClicked);
 
-        titleStyle = new GUIStyle(GUI.skin.label)
-        {
-            fontSize = 30,
-            fontStyle = FontStyle.Bold,
-            alignment = TextAnchor.MiddleCenter,
-        };
-        titleStyle.normal.textColor = AccentColor;
-
-        headingStyle = new GUIStyle(GUI.skin.label)
-        {
-            fontSize = 15,
-            alignment = TextAnchor.MiddleCenter,
-        };
-        headingStyle.normal.textColor = new Color(0.75f, 0.78f, 0.85f);
-
-        bodyStyle = new GUIStyle(GUI.skin.label)
-        {
-            fontSize = 14,
-            alignment = TextAnchor.MiddleCenter,
-            wordWrap = true,
-        };
-        bodyStyle.normal.textColor = new Color(0.85f, 0.87f, 0.92f);
-
-        // รหัสห้องต้องอ่านง่ายที่สุดในจอ เพราะต้องอ่านให้เพื่อนฟังทางโทรศัพท์
-        codeStyle = new GUIStyle(GUI.skin.box)
-        {
-            fontSize = 34,
-            fontStyle = FontStyle.Bold,
-            alignment = TextAnchor.MiddleCenter,
-        };
-        codeStyle.normal.textColor = Color.white;
-
-        buttonStyle = new GUIStyle(GUI.skin.button)
-        {
-            fontSize = 17,
-            fixedHeight = 46f,
-        };
-
-        inputStyle = new GUIStyle(GUI.skin.textField)
-        {
-            fontSize = 24,
-            alignment = TextAnchor.MiddleCenter,
-            fixedHeight = 46f,
-        };
-    }
-
-    private void OnGUI()
-    {
-        BuildStyles();
-
-        bool connected = NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
-
-        // อยู่ในสนามรบแล้วให้ย่อเหลือแถบเล็ก ๆ มุมจอ ไม่บังพื้นที่เล่น
-        if (connected && IsInGameScene())
-        {
-            DrawCompactBar();
-            return;
-        }
-
-        const float width = 420f;
-        const float height = 380f;
-        var panel = new Rect((Screen.width - width) * 0.5f, (Screen.height - height) * 0.5f, width, height);
-
-        GUI.DrawTexture(panel, panelTexture);
-
-        GUILayout.BeginArea(new Rect(panel.x + 28f, panel.y + 24f, panel.width - 56f, panel.height - 48f));
-
-        GUILayout.Label("วงเวทออนไลน์", titleStyle);
-        GUILayout.Space(4);
-
-        GUI.enabled = ready && !busy;
-
-        if (!connected) DrawJoinPanel();
-        else DrawRoomPanel();
-
-        GUI.enabled = true;
-
-        GUILayout.FlexibleSpace();
-        GUILayout.Label(string.IsNullOrEmpty(status) ? " " : status, bodyStyle);
-
-        GUILayout.EndArea();
-    }
-
-    private void DrawJoinPanel()
-    {
-        GUILayout.Label("สร้างห้องแล้วส่งรหัสให้เพื่อน หรือใส่รหัสที่ได้รับ", headingStyle);
-        GUILayout.Space(14);
-
-        if (GUILayout.Button("สร้างห้องใหม่", buttonStyle))
-            _ = HostAsync();
-
-        GUILayout.Space(18);
-        GUILayout.Label("— หรือ —", headingStyle);
-        GUILayout.Space(10);
-
-        // บังคับเป็นตัวใหญ่ทั้งหมด รหัสห้องเป็นตัวใหญ่เสมอ ผู้เล่นจะได้ไม่ต้องกด Shift
-        joinCodeInput = GUILayout.TextField(joinCodeInput, 10, inputStyle).ToUpperInvariant();
-
-        GUILayout.Space(8);
-        if (GUILayout.Button("เข้าห้องด้วยรหัส", buttonStyle))
-            _ = JoinAsync();
-    }
-
-    private void DrawRoomPanel()
-    {
-        bool isHost = NetworkManager.Singleton.IsHost;
-
-        GUILayout.Label(isHost ? "คุณเป็นเจ้าของห้อง" : "คุณเข้าร่วมห้องแล้ว", headingStyle);
-        GUILayout.Space(10);
-
-        if (session != null)
-        {
-            GUILayout.Label("รหัสห้อง", headingStyle);
-            GUILayout.Label(session.Code, codeStyle, GUILayout.Height(58f));
-
-            GUI.enabled = true;
-            if (GUILayout.Button("คัดลอกรหัส", buttonStyle))
-            {
-                GUIUtility.systemCopyBuffer = session.Code;
-                status = "คัดลอกรหัสแล้ว";
-            }
-            GUI.enabled = ready && !busy;
-        }
-
-        GUILayout.Space(10);
-        GUILayout.Label(
-            $"ผู้เล่นในห้อง {NetworkManager.Singleton.ConnectedClientsIds.Count} / {maxPlayers} คน",
-            bodyStyle);
-
-        GUILayout.Space(12);
-
-        // เฉพาะ Host เท่านั้นที่สั่งเริ่มเกมได้ ถ้าให้ทุกคนกดได้จะแย่งกันโหลดซีน
-        if (isHost)
-        {
-            if (GUILayout.Button("เริ่มเกม", buttonStyle))
-                StartGame();
-        }
-        else
-        {
-            GUILayout.Label("รอเจ้าของห้องกดเริ่มเกม...", bodyStyle);
-        }
-
-        GUILayout.Space(8);
-        if (GUILayout.Button("ออกจากห้อง", buttonStyle))
-            _ = LeaveAsync();
-    }
-
-    /// <summary>
-    /// แถบเล็กมุมซ้ายบนตอนอยู่ในสนามรบ
-    /// ยังต้องเห็นรหัสห้องและออกจากห้องได้ แต่ไม่ควรกินพื้นที่เล่น
-    /// </summary>
-    private void DrawCompactBar()
-    {
-        var bar = new Rect(12f, 12f, 210f, 74f);
-        GUI.DrawTexture(bar, panelTexture);
-
-        GUILayout.BeginArea(new Rect(bar.x + 10f, bar.y + 8f, bar.width - 20f, bar.height - 16f));
-
-        string code = session != null ? session.Code : "-";
-        GUILayout.Label($"ห้อง {code}   ผู้เล่น {NetworkManager.Singleton.ConnectedClientsIds.Count}", bodyStyle);
-
-        if (GUILayout.Button("ออกจากห้อง"))
-            _ = LeaveAsync();
-
-        GUILayout.EndArea();
+        if (codeInput != null) codeInput.onValueChanged.AddListener(OnCodeChanged);
     }
 
     private void OnDestroy()
     {
-        // Texture ที่สร้างด้วยโค้ดไม่ถูกเก็บอัตโนมัติ ต้องทำลายเอง
-        if (panelTexture != null) Destroy(panelTexture);
+        // ไม่ถอด listener = event ค้างชี้มาที่ object ที่ถูกทำลายแล้ว
+        if (hostButton != null) hostButton.onClick.RemoveListener(OnHostClicked);
+        if (joinButton != null) joinButton.onClick.RemoveListener(OnJoinClicked);
+        if (copyButton != null) copyButton.onClick.RemoveListener(OnCopyClicked);
+        if (startButton != null) startButton.onClick.RemoveListener(StartGame);
+        if (leaveButton != null) leaveButton.onClick.RemoveListener(OnLeaveClicked);
+        if (compactLeaveButton != null) compactLeaveButton.onClick.RemoveListener(OnLeaveClicked);
+
+        if (codeInput != null) codeInput.onValueChanged.RemoveListener(OnCodeChanged);
+    }
+
+    private void OnHostClicked() => _ = HostAsync();
+    private void OnJoinClicked() => _ = JoinAsync();
+    private void OnLeaveClicked() => _ = LeaveAsync();
+
+    private void OnCopyClicked()
+    {
+        if (session == null) return;
+        GUIUtility.systemCopyBuffer = session.Code;
+        status = "คัดลอกรหัสแล้ว";
+    }
+
+    /// <summary>รหัสห้องเป็นตัวใหญ่เสมอ แปลงให้เลยผู้เล่นจะได้ไม่ต้องกด Shift</summary>
+    private void OnCodeChanged(string value)
+    {
+        string upper = value.ToUpperInvariant();
+        joinCodeInput = upper;
+
+        if (codeInput != null && codeInput.text != upper) codeInput.text = upper;
+    }
+
+    /// <summary>
+    /// หาฟอนต์ที่มีอักขระไทยจากระบบมาใส่ให้ทุกข้อความ
+    ///
+    /// จำเป็นเพราะฟอนต์เริ่มต้นของ uGUI ไม่มีอักขระไทย ตัวหนังสือจะกลายเป็น
+    /// สี่เหลี่ยมเปล่าทั้งจอ และเราไม่ได้ใส่ไฟล์ฟอนต์มาในโปรเจกต์
+    /// (ฟอนต์ของ Windows มีข้อจำกัดเรื่องการแจกจ่ายต่อ จึงไม่ควร commit ลง repo)
+    ///
+    /// ถ้าจะปล่อยเกมจริงควรหาฟอนต์ไทยที่เปิดให้ใช้ได้อย่าง Sarabun หรือ
+    /// Noto Sans Thai มาใส่ในโปรเจกต์แทน จะได้ไม่ต้องพึ่งฟอนต์ของเครื่องผู้เล่น
+    /// </summary>
+    private void ApplyThaiFont()
+    {
+        // ไล่จากตัวที่หน้าตาดีที่สุดไปตัวที่มีในเครื่องแน่นอนที่สุด
+        string[] candidates =
+        {
+            "Leelawadee UI", "Leelawadee", "Tahoma", "Arial Unicode MS", "Noto Sans Thai", "Sarabun",
+        };
+
+        Font font = null;
+        foreach (string name in candidates)
+        {
+            try
+            {
+                font = Font.CreateDynamicFontFromOSFont(name, 24);
+            }
+            catch (Exception)
+            {
+                font = null;
+            }
+
+            if (font != null) break;
+        }
+
+        if (font == null)
+        {
+            Debug.LogWarning("[OnlineUI2D] หาฟอนต์ไทยในเครื่องไม่เจอ ตัวหนังสืออาจขึ้นเป็นสี่เหลี่ยมเปล่า");
+            return;
+        }
+
+        foreach (Text text in GetComponentsInChildren<Text>(true))
+            if (text != null) text.font = font;
+    }
+
+    private void Update()
+    {
+        bool connected = NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
+        bool inGame = connected && IsInGameScene();
+
+        // อยู่ในสนามรบแล้วย่อเหลือแถบเล็ก ไม่บังพื้นที่เล่น
+        SetActive(compactPanel, inGame);
+        SetActive(joinPanel, !connected);
+        SetActive(roomPanel, connected && !inGame);
+
+        if (statusText != null) statusText.text = status;
+
+        if (inGame) UpdateCompactPanel();
+        else if (connected) UpdateRoomPanel();
+        else UpdateJoinPanel();
+    }
+
+    private void UpdateJoinPanel()
+    {
+        bool usable = ready && !busy;
+        if (hostButton != null) hostButton.interactable = usable;
+        if (joinButton != null) joinButton.interactable = usable;
+        if (codeInput != null) codeInput.interactable = usable;
+    }
+
+    private void UpdateRoomPanel()
+    {
+        bool isHost = NetworkManager.Singleton.IsHost;
+        bool usable = ready && !busy;
+
+        if (roleText != null)
+            roleText.text = isHost ? "คุณเป็นเจ้าของห้อง" : "คุณเข้าร่วมห้องแล้ว";
+
+        if (roomCodeText != null)
+            roomCodeText.text = session != null ? session.Code : "-";
+
+        if (playersText != null)
+            playersText.text =
+                $"ผู้เล่นในห้อง {NetworkManager.Singleton.ConnectedClientsIds.Count} / {maxPlayers} คน";
+
+        // คนที่ไม่ใช่เจ้าของห้องเห็นข้อความรอแทนปุ่ม จะได้ไม่งงว่าทำไมกดไม่ได้
+        SetActive(startButton != null ? startButton.gameObject : null, isHost);
+        SetActive(waitText != null ? waitText.gameObject : null, !isHost);
+
+        if (startButton != null) startButton.interactable = usable;
+        if (leaveButton != null) leaveButton.interactable = usable;
+        if (copyButton != null) copyButton.interactable = session != null;
+    }
+
+    private void UpdateCompactPanel()
+    {
+        if (compactText == null) return;
+
+        string code = session != null ? session.Code : "-";
+        compactText.text = $"ห้อง {code}   ผู้เล่น {NetworkManager.Singleton.ConnectedClientsIds.Count}";
+    }
+
+    private static void SetActive(GameObject target, bool active)
+    {
+        if (target != null && target.activeSelf != active) target.SetActive(active);
     }
 
     private void OnApplicationQuit()
