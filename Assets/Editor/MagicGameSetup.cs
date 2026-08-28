@@ -19,8 +19,10 @@ using UnityEngine.SceneManagement;
 ///
 /// สิ่งที่สร้าง:
 /// - Assets/Art/Generated/MagicCircle.png   ภาพวงเวทวาดด้วยโค้ด (พื้นหลังโปร่งใส)
+/// - Assets/Art/Generated/WhiteSquare.png   สี่เหลี่ยมขาวสำหรับทำพื้น
 /// - Assets/Prefabs/MagicCircle.prefab      Prefab วงเวท
 /// - Assets/Prefabs/Player.prefab           Prefab ผู้เล่น ใส่ครบทั้งเดินและร่ายเวท
+/// - Ground ในฉาก พื้นให้ยืน เพราะตัวละครเปิดแรงโน้มถ่วง
 /// - NetworkManager ในฉาก พร้อมผูก Player Prefab และ Unity Transport
 /// - OnlineUI ในฉาก เมนูสร้าง/เข้าห้อง
 /// - EventSystem ในฉาก เพื่อให้ระบบวาดรู้ว่าเมื่อไรนิ้วอยู่บนปุ่ม UI
@@ -30,6 +32,7 @@ public static class MagicGameSetup
     private const string ArtFolder = "Assets/Art/Generated";
     private const string PrefabFolder = "Assets/Prefabs";
     private const string CircleTexturePath = ArtFolder + "/MagicCircle.png";
+    private const string SquareTexturePath = ArtFolder + "/WhiteSquare.png";
     private const string CirclePrefabPath = PrefabFolder + "/MagicCircle.prefab";
     private const string PlayerPrefabPath = PrefabFolder + "/Player.prefab";
 
@@ -43,9 +46,11 @@ public static class MagicGameSetup
         EnsureFolder(PrefabFolder);
 
         Sprite circleSprite = CreateMagicCircleSprite();
+        Sprite squareSprite = CreateSquareSprite();
         MagicCircle circlePrefab = CreateMagicCirclePrefab(circleSprite);
         GameObject playerPrefab = CreatePlayerPrefab(circlePrefab);
 
+        SetupGround(squareSprite);
         SetupNetworkManager(playerPrefab);
         SetupOnlineUI();
         SetupEventSystem();
@@ -58,8 +63,9 @@ public static class MagicGameSetup
 
         Debug.Log(
             "[MagicGameSetup] ติดตั้งเสร็จแล้ว\n"
-            + "กด Play ได้เลย จากนั้นกดปุ่ม 'สร้างห้อง' มุมซ้ายบน แล้วลากเมาส์วาดรูปทรงเพื่อร่ายเวท\n"
-            + "วงกลม=น้ำ  สามเหลี่ยม=ไฟ  สี่เหลี่ยม=ดิน  วาดมั่ว=ลม"
+            + "กด Play แล้วกดปุ่ม 'สร้างห้อง' มุมซ้ายบน\n"
+            + "A/D = เดินซ้ายขวา | ลากเมาส์ = เขียนคาถา | Space = ยืนยัน | เลื่อนเมาส์เล็ง | Space = ยิง | Esc = ยกเลิก\n"
+            + "วงกลม=น้ำ  สามเหลี่ยม=ไฟ  สี่เหลี่ยม=ดิน  ขีดตรง 4 ขีด=ลม"
         );
     }
 
@@ -136,6 +142,58 @@ public static class MagicGameSetup
         return Mathf.Clamp01(1f - distance / thickness);
     }
 
+    /// <summary>
+    /// สี่เหลี่ยมขาวล้วนสำหรับทำพื้น
+    /// ตั้ง Pixels Per Unit เท่ากับขนาดภาพพอดี sprite จึงกว้าง 1 หน่วยเป๊ะ
+    /// ทำให้ BoxCollider2D ที่วัดขนาดจากภาพตรงกับที่ตาเห็นเสมอแม้จะสเกลทีหลัง
+    /// </summary>
+    private static Sprite CreateSquareSprite()
+    {
+        const int size = 64;
+
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        var pixels = new Color32[size * size];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = new Color32(255, 255, 255, 255);
+        texture.SetPixels32(pixels);
+        texture.Apply();
+
+        File.WriteAllBytes(SquareTexturePath, texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+
+        AssetDatabase.ImportAsset(SquareTexturePath, ImportAssetOptions.ForceUpdate);
+
+        var importer = (TextureImporter)AssetImporter.GetAtPath(SquareTexturePath);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.mipmapEnabled = false;
+        importer.spritePixelsPerUnit = size;
+        importer.SaveAndReimport();
+
+        return AssetDatabase.LoadAssetAtPath<Sprite>(SquareTexturePath);
+    }
+
+    /// <summary>
+    /// พื้นให้ยืน จำเป็นเพราะตัวละครเปิดแรงโน้มถ่วงแล้ว
+    /// ถ้าไม่มีพื้น ผู้เล่นจะร่วงหายไปเรื่อย ๆ ตั้งแต่วินาทีแรก
+    /// </summary>
+    private static void SetupGround(Sprite squareSprite)
+    {
+        GameObject go = ReplaceSceneObject("Ground");
+
+        go.transform.position = new Vector3(0f, -4f, 0f);
+        go.transform.localScale = new Vector3(40f, 1.5f, 1f);
+
+        var renderer = go.AddComponent<SpriteRenderer>();
+        renderer.sprite = squareSprite;
+        renderer.color = new Color(0.20f, 0.22f, 0.28f);
+        renderer.sortingOrder = -10;
+
+        // ไม่ระบุขนาดเอง ปล่อยให้วัดจาก sprite แล้วสเกลของ transform คูณให้เอง
+        go.AddComponent<BoxCollider2D>();
+
+        EditorUtility.SetDirty(go);
+    }
+
     // ---------- Prefab ----------
 
     private static MagicCircle CreateMagicCirclePrefab(Sprite sprite)
@@ -165,10 +223,11 @@ public static class MagicGameSetup
         renderer.sortingOrder = 10;
 
         var body = root.AddComponent<Rigidbody2D>();
-        body.gravityScale = 0f;
         body.freezeRotation = true;
-        // เกมมองจากด้านบน ไม่ต้องให้ตัวลื่นไถลหลังปล่อยปุ่ม
-        body.linearDamping = 8f;
+        // NetworkPlayer2D เป็นคนตั้งแรงโน้มถ่วงตอนเกิด และหยุดตัวเองด้วย MoveTowards
+        // ถ้าใส่ damping ตรงนี้ด้วยจะไปหน่วงซ้ำจนเดินหนืด
+        body.gravityScale = 3f;
+        body.linearDamping = 0f;
 
         var collider = root.AddComponent<CircleCollider2D>();
         collider.radius = 0.5f;
@@ -207,7 +266,8 @@ public static class MagicGameSetup
             SerializedProperty entry = visuals.GetArrayElementAtIndex(i);
             entry.FindPropertyRelative("element").enumValueIndex = i;
             entry.FindPropertyRelative("circlePrefab").objectReferenceValue = circlePrefab;
-            entry.FindPropertyRelative("castEffectPrefab").objectReferenceValue = null;
+            // ลูกเวทยังไม่มีอาร์ต ปล่อยว่างไว้ก่อน ใส่ทีหลังได้จาก Inspector
+            entry.FindPropertyRelative("projectilePrefab").objectReferenceValue = null;
         }
 
         so.ApplyModifiedPropertiesWithoutUndo();

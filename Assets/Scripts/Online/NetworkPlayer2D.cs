@@ -3,44 +3,68 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// ตัวละคร 2D ที่ขยับได้ในเกมออนไลน์
+/// ตัวละคร 2D มุมมองด้านข้าง เดินได้แค่ซ้ายกับขวา
 ///
-/// หัวใจอยู่ที่ IsOwner: ทุกเครื่องจะเห็นตัวละครของ "ทุกคน" แต่เครื่องเราจะรับปุ่ม
-/// ให้เฉพาะตัวที่เราเป็นเจ้าของเท่านั้น ตัวของคนอื่นปล่อยให้ NetworkTransform
-/// ซิงก์ตำแหน่งมาให้เอง ถ้าลืมเช็ค IsOwner จะกลายเป็นกดทีเดียวขยับทุกตัวพร้อมกัน
+/// หัวใจอยู่ที่ IsOwner: ทุกเครื่องเห็นตัวละครของทุกคน แต่เครื่องเรารับปุ่มให้เฉพาะ
+/// ตัวที่เราเป็นเจ้าของ ตัวของคนอื่นปล่อยให้ NetworkTransform ซิงก์ตำแหน่งมาให้
+/// ถ้าลืมเช็ค IsOwner จะกลายเป็นกดทีเดียวขยับทุกตัวพร้อมกัน
 ///
-/// โปรเจกต์นี้ตั้ง Active Input Handling เป็น Input System (New) จึงใช้
-/// Keyboard.current ไม่ใช่ Input.GetAxisRaw ของระบบเก่า (เรียกแล้วจะ error)
+/// ระหว่างร่ายเวทจะเดินไม่ได้ ระบบวาด (SpellDrawing) เป็นคนสั่งล็อกผ่าน
+/// MovementLocked ไม่ได้ปิดสคริปต์ทิ้ง เพราะยังต้องให้แรงเสียดทานหยุดตัวและ
+/// ยังต้องรู้ทิศที่หันหน้าอยู่
+///
+/// โปรเจกต์นี้ตั้ง Active Input Handling เป็น Input System แบบใหม่
+/// จึงใช้ Keyboard.current ไม่ใช่ Input.GetAxisRaw ของระบบเก่า (เรียกแล้วจะ error)
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 public class NetworkPlayer2D : NetworkBehaviour
 {
+    [Header("การเดิน")]
     [SerializeField] private float moveSpeed = 5f;
 
+    [Tooltip("แรงโน้มถ่วง ตั้ง 0 ถ้าอยากได้แบบลอยไม่มีพื้น")]
+    [SerializeField] private float gravityScale = 3f;
+
+    [Tooltip("แรงหน่วงแนวนอน ทำให้หยุดเร็วเวลาปล่อยปุ่ม")]
+    [SerializeField] private float stopDamping = 12f;
+
+    [Header("กล้อง")]
     [Tooltip("ให้กล้องหลักตามตัวเราอัตโนมัติตอนเกิด")]
     [SerializeField] private bool followWithMainCamera = true;
 
+    [Header("การหันหน้า")]
+    [Tooltip("พลิกภาพตามทิศที่เดิน")]
+    [SerializeField] private bool flipSpriteWithFacing = true;
+
     private Rigidbody2D body;
-    private Vector2 moveInput;
+    private SpriteRenderer spriteRenderer;
+    private float moveInput;
+
+    /// <summary>ล็อกการเดิน ใช้ตอนกำลังร่ายเวท</summary>
+    public bool MovementLocked { get; set; }
+
+    /// <summary>ทิศที่ตัวละครหันอยู่ตอนนี้ (1 = ขวา, -1 = ซ้าย) ใช้เป็นทิศร่ายเริ่มต้น</summary>
+    public float Facing { get; private set; } = 1f;
 
     private void Awake()
     {
         body = GetComponent<Rigidbody2D>();
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
     }
 
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
 
-        // เกมมองจากด้านบน ไม่ต้องมีแรงโน้มถ่วง และห้ามตัวหมุนตอนชนกัน
-        body.gravityScale = 0f;
         body.freezeRotation = true;
+        body.gravityScale = gravityScale;
 
         if (!IsOwner)
         {
             // ตัวของคนอื่น: ตำแหน่งมาจาก NetworkTransform ล้วน ๆ
             // ปล่อยให้ฟิสิกส์ในเครื่องเราคำนวณด้วยจะตีกันจนตัวสั่น
             body.bodyType = RigidbodyType2D.Kinematic;
+            body.gravityScale = 0f;
             return;
         }
 
@@ -64,26 +88,50 @@ public class NetworkPlayer2D : NetworkBehaviour
     {
         if (!IsOwner) return;
 
+        if (MovementLocked)
+        {
+            moveInput = 0f;
+            return;
+        }
+
         Keyboard keyboard = Keyboard.current;
-        if (keyboard == null) return;
+        if (keyboard == null)
+        {
+            moveInput = 0f;
+            return;
+        }
 
-        float x = 0f;
-        float y = 0f;
+        float direction = 0f;
+        if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) direction -= 1f;
+        if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed) direction += 1f;
 
-        if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) x -= 1f;
-        if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed) x += 1f;
-        if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed) y -= 1f;
-        if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) y += 1f;
+        moveInput = direction;
 
-        // normalize กันเดินทแยงเร็วกว่าเดินตรง
-        moveInput = new Vector2(x, y).normalized;
+        if (!Mathf.Approximately(direction, 0f))
+        {
+            Facing = Mathf.Sign(direction);
+            if (flipSpriteWithFacing && spriteRenderer != null)
+                spriteRenderer.flipX = Facing < 0f;
+        }
     }
 
     private void FixedUpdate()
     {
         if (!IsOwner) return;
 
-        // Unity 6 เปลี่ยนชื่อ velocity เป็น linearVelocity แล้ว
-        body.linearVelocity = moveInput * moveSpeed;
+        Vector2 velocity = body.linearVelocity;
+
+        if (Mathf.Approximately(moveInput, 0f))
+        {
+            // ค่อย ๆ หยุดแทนการตัดความเร็วเป็นศูนย์ทันที จะได้ไม่กระตุก
+            velocity.x = Mathf.MoveTowards(velocity.x, 0f, stopDamping * Time.fixedDeltaTime);
+        }
+        else
+        {
+            velocity.x = moveInput * moveSpeed;
+        }
+
+        // ไม่แตะแกน y เลย ปล่อยให้แรงโน้มถ่วงจัดการ
+        body.linearVelocity = velocity;
     }
 }

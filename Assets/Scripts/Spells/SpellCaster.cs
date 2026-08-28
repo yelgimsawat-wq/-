@@ -5,15 +5,18 @@ using UnityEngine;
 namespace MagicDrawing
 {
     /// <summary>
-    /// ตัวกลางระหว่างการวาดกับเครือข่าย ทำให้ทุกเครื่องเห็นวงเวทตรงกัน
+    /// ตัวกลางระหว่างการวาดกับเครือข่าย ทำให้ทุกเครื่องเห็นเวทตรงกัน
     ///
-    /// เส้นทางข้อมูลตามข้อกำหนดข้อ 3.4:
-    ///   เจ้าของตัวละครวาดเสร็จ -> RequestCast -> ServerRpc -> ClientRpc -> ทุกเครื่องแสดงผล
+    /// เส้นทางข้อมูล:
+    ///   เจ้าของตัวละครยืนยันทิศ -> RequestCast -> ServerRpc -> ClientRpc -> ทุกเครื่องแสดงผล
     ///
     /// จุดที่ต้องระวังเรื่องขนาดข้อมูล: RPC ของ Netcode มีเพดานขนาดข้อความ
     /// ถ้าส่งจุดดิบไปทั้งหมดตอนคนลากยาว ๆ อาจทะลุเพดานจนหลุดทั้งก้อน
     /// เราจึงบีบให้เหลือจำนวนคงที่ก่อนส่งเสมอ (NetworkPointCount)
     /// รูปทรงยังคงเดิมเพราะเป็นการเกลี่ยจุดใหม่ ไม่ใช่ตัดจุดท้ายทิ้ง
+    ///
+    /// ส่งเฉพาะขีดที่ยาวที่สุดขีดเดียว ไม่ได้ส่งทุกขีด เพราะขีดที่เหลือเป็นแค่
+    /// ขั้นตอนการเขียนคาถาของคนร่าย คนอื่นเห็นผลลัพธ์ก็พอ
     /// </summary>
     [RequireComponent(typeof(NetworkObject))]
     public class SpellCaster : NetworkBehaviour
@@ -29,19 +32,16 @@ namespace MagicDrawing
         {
             public SpellElement element;
 
-            [Tooltip("Prefab วงเวทที่จะโผล่หน้าตัวละคร")]
+            [Tooltip("Prefab วงเวทที่จะโผล่ตรงทิศที่เล็ง")]
             public MagicCircle circlePrefab;
 
-            [Tooltip("เอฟเฟกต์ตอนร่าย เช่น ParticleSystem ปล่อยว่างได้")]
-            public GameObject castEffectPrefab;
+            [Tooltip("Prefab ลูกเวทที่พุ่งออกไป ปล่อยว่างได้ถ้ายังไม่มี")]
+            public SpellProjectile projectilePrefab;
         }
 
-        [Header("ตำแหน่งที่วงเวทจะโผล่")]
-        [Tooltip("จุดหน้าตัวละคร ปล่อยว่าง = ใช้ตัวละครเองแล้วเลื่อนตาม castOffset")]
-        [SerializeField] private Transform castOrigin;
-
-        [Tooltip("ระยะเลื่อนจากตัวละคร ใช้เมื่อไม่ได้กำหนด castOrigin")]
-        [SerializeField] private Vector2 castOffset = new Vector2(0f, 1.2f);
+        [Header("ตำแหน่งที่เวทจะออก")]
+        [Tooltip("ระยะห่างจากตัวละครไปตามทิศที่เล็ง")]
+        [SerializeField] private float castDistance = 1.2f;
 
         [Header("ภาพประจำแต่ละธาตุ")]
         [SerializeField] private ElementVisual[] elementVisuals;
@@ -50,7 +50,7 @@ namespace MagicDrawing
         [SerializeField] private MagicCircle fallbackCirclePrefab;
 
         [Header("เส้นที่วาดค้างไว้บนแผนที่")]
-        [Tooltip("แสดงเส้นที่ผู้เล่นวาดให้ทุกคนเห็นด้วย ปิดได้ถ้าอยากเห็นแค่วงเวท")]
+        [Tooltip("แสดงเส้นที่ผู้เล่นเขียนให้ทุกคนเห็นด้วย ปิดได้ถ้าอยากเห็นแค่วงเวท")]
         [SerializeField] private bool showDrawnStroke = true;
 
         [SerializeField] private float strokeLifetime = 1.2f;
@@ -62,76 +62,81 @@ namespace MagicDrawing
 
         private float nextAllowedCastTime;
 
+        /// <summary>ยังร่ายไม่ได้เพราะติดคูลดาวน์อยู่</summary>
+        public bool IsOnCooldown => Time.time < nextAllowedCastTime;
+
         /// <summary>
-        /// เรียกจากเครื่องเจ้าของตัวละครหลังวาดเสร็จ
+        /// เรียกจากเครื่องเจ้าของตัวละครหลังยืนยันทิศแล้ว
         /// จุดที่ส่งเข้ามาเป็นพิกัดโลก จะถูกบีบให้เหลือจำนวนคงที่ก่อนส่งต่อ
         /// </summary>
-        public void RequestCast(Vector2[] worldPoints, SpellElement element)
+        public void RequestCast(Vector2[] worldPoints, SpellElement element, Vector2 direction)
         {
             if (!IsOwner) return;
             if (worldPoints == null || worldPoints.Length < 2) return;
+            if (IsOnCooldown) return;
 
-            if (Time.time < nextAllowedCastTime) return;
             nextAllowedCastTime = Time.time + castCooldown;
 
             Vector2[] packed = DollarOneRecognizer.Resample(worldPoints, NetworkPointCount);
             if (packed == null) return;
 
-            CastSpellServerRpc(packed, (byte)element);
+            // ทิศต้องยาว 1 หน่วยเสมอ ไม่งั้นความเร็วลูกเวทจะเพี้ยนตามระยะเมาส์
+            Vector2 aim = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector2.right;
+
+            CastSpellServerRpc(packed, (byte)element, aim);
         }
 
         /// <summary>
         /// Server รับคำสั่งแล้วกระจายต่อ
-        /// ไม่ตรวจซ้ำว่ารูปทรงตรงกับธาตุไหม เพราะข้อกำหนดให้เครื่องผู้เล่นเป็นคนตัดสิน
+        /// ไม่ตรวจซ้ำว่ารูปทรงตรงกับธาตุไหม เพราะให้เครื่องผู้เล่นเป็นคนตัดสิน
         /// ผลคือถ้ามีคนแก้เกมก็ส่งธาตุอะไรมาก็ได้ ยอมรับได้สำหรับเกมเล่นกับเพื่อน
-        /// ถ้าวันหนึ่งต้องกันโกง ให้ย้ายการเรียก Recognize มาทำตรงนี้แทน
+        /// ถ้าวันหนึ่งต้องกันโกง ให้ย้ายการเรียก SpellRecognizer.Evaluate มาทำตรงนี้
         /// </summary>
         [ServerRpc]
-        private void CastSpellServerRpc(Vector2[] points, byte elementId)
+        private void CastSpellServerRpc(Vector2[] points, byte elementId, Vector2 direction)
         {
             if (points == null || points.Length < 2 || points.Length > NetworkPointCount) return;
 
-            CastSpellClientRpc(points, elementId);
+            CastSpellClientRpc(points, elementId, direction);
         }
 
-        /// <summary>ทุกเครื่องรวมทั้งคนร่ายเอง วาดเส้นและวงเวทให้ตรงกัน</summary>
+        /// <summary>ทุกเครื่องรวมทั้งคนร่ายเอง แสดงผลให้ตรงกัน</summary>
         [ClientRpc]
-        private void CastSpellClientRpc(Vector2[] points, byte elementId)
+        private void CastSpellClientRpc(Vector2[] points, byte elementId, Vector2 direction)
         {
             SpellElement element = SpellElementExtensions.FromNetworkId(elementId);
-            PlaySpell(points, element);
+            PlaySpell(points, element, direction);
         }
 
-        private void PlaySpell(Vector2[] points, SpellElement element)
+        private void PlaySpell(Vector2[] points, SpellElement element, Vector2 direction)
         {
             if (showDrawnStroke && points != null && points.Length >= 2)
                 SpellStrokeView.Spawn(points, element.ToColor(), strokeWidth, strokeLifetime);
 
-            Vector3 origin = GetCastPosition();
+            Vector2 aim = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector2.right;
+            Vector3 origin = transform.position + (Vector3)(aim * castDistance);
+
+            // หันวงเวทและลูกเวทไปตามทิศที่เล็ง
+            float angle = Mathf.Atan2(aim.y, aim.x) * Mathf.Rad2Deg;
+            Quaternion rotation = Quaternion.Euler(0f, 0f, angle);
+
             ElementVisual visual = FindVisual(element);
 
-            MagicCircle prefab = visual != null && visual.circlePrefab != null
+            MagicCircle circlePrefab = visual != null && visual.circlePrefab != null
                 ? visual.circlePrefab
                 : fallbackCirclePrefab;
 
-            if (prefab != null)
+            if (circlePrefab != null)
             {
-                MagicCircle circle = Instantiate(prefab, origin, Quaternion.identity);
+                MagicCircle circle = Instantiate(circlePrefab, origin, rotation);
                 circle.Play(element);
             }
 
-            if (visual != null && visual.castEffectPrefab != null)
+            if (visual != null && visual.projectilePrefab != null)
             {
-                GameObject effect = Instantiate(visual.castEffectPrefab, origin, Quaternion.identity);
-                // เอฟเฟกต์ส่วนใหญ่จบในตัวมันเอง ตั้งเวลาเก็บกวาดกันลืมไว้ด้วย
-                Destroy(effect, 5f);
+                SpellProjectile projectile = Instantiate(visual.projectilePrefab, origin, rotation);
+                projectile.Launch(aim, element);
             }
-        }
-
-        private Vector3 GetCastPosition()
-        {
-            if (castOrigin != null) return castOrigin.position;
-            return transform.position + new Vector3(castOffset.x, castOffset.y, 0f);
         }
 
         private ElementVisual FindVisual(SpellElement element)

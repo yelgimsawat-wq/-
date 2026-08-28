@@ -39,20 +39,19 @@ namespace MagicDrawing
         }
 
         /// <summary>
-        /// แปลงผลการตรวจรูปทรงเป็นธาตุ
-        /// ตามข้อกำหนด: ต่ำกว่าเกณฑ์ความแม่นยำ หรือไม่เข้าพวก ให้เป็นลมทั้งหมด
+        /// รูปทรงนี้ผูกกับธาตุอะไร คืน null ถ้าไม่มีเวทผูกไว้
+        ///
+        /// ธาตุลมไม่อยู่ในตารางนี้โดยตั้งใจ เพราะลมไม่ได้มาจากการวาดรูปทรง
+        /// แต่มาจากการขีดหลายขีด ซึ่ง SpellRecognizer เป็นคนตัดสิน
         /// </summary>
-        public static SpellElement ToElement(RecognitionResult result, float minimumScore)
+        public static SpellElement? ShapeToElement(string shapeName)
         {
-            if (!result.HasMatch || result.Score < minimumScore)
-                return SpellElement.Wind;
-
-            switch (result.Name)
+            switch (shapeName)
             {
                 case ShapeCircle:    return SpellElement.Water;
                 case ShapeTriangle:  return SpellElement.Fire;
                 case ShapeRectangle: return SpellElement.Earth;
-                default:             return SpellElement.Wind;
+                default:             return null;
             }
         }
 
