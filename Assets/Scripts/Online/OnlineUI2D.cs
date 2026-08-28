@@ -5,6 +5,7 @@ using Unity.Services.Authentication;
 using Unity.Services.Core;
 using Unity.Services.Multiplayer;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// เมนูสร้างห้อง/เข้าห้องแบบเล่นออนไลน์ข้ามอินเทอร์เน็ตได้จริง
@@ -25,6 +26,9 @@ public class OnlineUI2D : MonoBehaviour
 {
     [Tooltip("จำนวนผู้เล่นสูงสุด ล็อกตอนสร้างห้อง เปลี่ยนทีหลังไม่ได้")]
     [SerializeField] private int maxPlayers = 4;
+
+    [Tooltip("ชื่อซีนเกม ต้องอยู่ใน Build Settings ด้วย ไม่งั้น Netcode โหลดไม่ได้")]
+    [SerializeField] private string gameSceneName = "Game";
 
     private ISession session;
     private string joinCodeInput = string.Empty;
@@ -119,6 +123,36 @@ public class OnlineUI2D : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Host สั่งโหลดซีนเกม ทุกคนในห้องจะถูกพาไปด้วยอัตโนมัติ
+    ///
+    /// ต้องใช้ SceneManager ของ Netcode ไม่ใช่ของ Unity ตรง ๆ
+    /// ถ้าเรียก UnityEngine.SceneManagement.SceneManager.LoadScene เอง
+    /// จะโหลดแค่เครื่องตัวเอง คนอื่นค้างอยู่ห้องรอ แล้วมองไม่เห็นกันเลย
+    /// </summary>
+    private void StartGame()
+    {
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsHost) return;
+
+        if (string.IsNullOrEmpty(gameSceneName))
+        {
+            status = "ยังไม่ได้ตั้งชื่อซีนเกม";
+            return;
+        }
+
+        SceneEventProgressStatus result =
+            NetworkManager.Singleton.SceneManager.LoadScene(gameSceneName, LoadSceneMode.Single);
+
+        status = result == SceneEventProgressStatus.Started
+            ? "กำลังเข้าเกม..."
+            : $"เข้าเกมไม่สำเร็จ: {result} (ใส่ซีนใน Build Settings หรือยัง)";
+    }
+
+    private bool IsInGameScene()
+    {
+        return SceneManager.GetActiveScene().name == gameSceneName;
+    }
+
     private async Task LeaveAsync()
     {
         busy = true;
@@ -185,6 +219,14 @@ public class OnlineUI2D : MonoBehaviour
             }
 
             GUILayout.Label("ผู้เล่นในห้อง: " + NetworkManager.Singleton.ConnectedClientsIds.Count);
+
+            // เฉพาะ Host เท่านั้นที่สั่งเริ่มเกมได้ ถ้าให้ทุกคนกดได้จะแย่งกันโหลดซีน
+            if (NetworkManager.Singleton.IsHost && !IsInGameScene())
+            {
+                GUILayout.Space(8);
+                if (GUILayout.Button("เริ่มเกม"))
+                    StartGame();
+            }
 
             GUILayout.Space(8);
             if (GUILayout.Button("ออกจากห้อง"))

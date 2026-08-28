@@ -41,9 +41,9 @@ public class NetworkPlayer2D : NetworkBehaviour
     [Tooltip("ตกต่ำกว่าระดับนี้แล้วดีดกลับจุดเกิด กันหลุดแมพหายไปเลย")]
     [SerializeField] private float respawnBelowY = -30f;
 
-    [Header("กล้อง")]
-    [Tooltip("ให้กล้องหลักตามตัวเราอัตโนมัติตอนเกิด")]
-    [SerializeField] private bool followWithMainCamera = true;
+    // เคยผูกกล้องเป็นลูกของตัวละครตรงนี้ ย้ายไปให้ CameraFollow2D บนกล้องทำแทนแล้ว
+    // เพราะพอแยกซีน การโหลดซีนใหม่จะทำลายกล้องเก่าทิ้ง แต่ตัวละครย้ายข้ามซีนไปด้วย
+    // ผลคือตัวละครยังอยู่แต่กล้องหายไป จอดำโดยไม่มี error
 
     [Header("การหันหน้า")]
     [Tooltip("พลิกภาพตามทิศที่เดิน")]
@@ -88,23 +88,7 @@ public class NetworkPlayer2D : NetworkBehaviour
             // ปล่อยให้ฟิสิกส์ในเครื่องเราคำนวณด้วยจะตีกันจนตัวสั่น
             body.bodyType = RigidbodyType2D.Kinematic;
             body.gravityScale = 0f;
-            return;
         }
-
-        if (followWithMainCamera && Camera.main != null)
-            Camera.main.transform.SetParent(transform, false);
-    }
-
-    public override void OnNetworkDespawn()
-    {
-        // ถ้าไม่ปลดกล้องออกก่อน กล้องจะถูกทำลายไปพร้อมตัวละคร แล้วจอจะดำ
-        if (IsOwner && followWithMainCamera && Camera.main != null
-            && Camera.main.transform.parent == transform)
-        {
-            Camera.main.transform.SetParent(null, true);
-        }
-
-        base.OnNetworkDespawn();
     }
 
     private void Update()

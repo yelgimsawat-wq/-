@@ -7,6 +7,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 
 /// <summary>
@@ -40,6 +41,10 @@ public static class MagicGameSetup
     private const string CirclePrefabPath = PrefabFolder + "/MagicCircle.prefab";
     private const string PlayerPrefabPath = PrefabFolder + "/Player.prefab";
 
+    private const string SceneFolder = "Assets/Scenes";
+    private const string LobbyScenePath = SceneFolder + "/Lobby.unity";
+    private const string GameScenePath = SceneFolder + "/Game.unity";
+
     private const int CircleTextureSize = 256;
 
     [MenuItem("Tools/เกมวาดวงเวท/ติดตั้งฉากอัตโนมัติ", priority = 0)]
@@ -48,6 +53,7 @@ public static class MagicGameSetup
         EnsureFolder("Assets/Art");
         EnsureFolder(ArtFolder);
         EnsureFolder(PrefabFolder);
+        EnsureFolder(SceneFolder);
 
         Sprite circleSprite = CreateMagicCircleSprite();
         Sprite squareSprite = CreateSquareSprite();
@@ -57,23 +63,98 @@ public static class MagicGameSetup
         SpellProjectile projectilePrefab = CreateProjectilePrefab(orbSprite);
         GameObject playerPrefab = CreatePlayerPrefab(circlePrefab, projectilePrefab);
 
-        SetupGround(squareSprite);
-        SetupNetworkManager(playerPrefab);
-        SetupOnlineUI();
-        SetupEventSystem();
-        SetupCamera();
+        // สร้างซีนเกมก่อน แล้วค่อยซีนห้องรอ เพื่อให้จบด้วยการเปิดซีนห้องรอค้างไว้
+        // ซึ่งเป็นซีนที่ผู้เล่นต้องกด Play จากตรงนั้น
+        BuildGameScene(squareSprite);
+        BuildLobbyScene(playerPrefab);
 
-        Scene scene = SceneManager.GetActiveScene();
-        EditorSceneManager.MarkSceneDirty(scene);
-        EditorSceneManager.SaveScene(scene);
+        RegisterScenesInBuildSettings();
         AssetDatabase.SaveAssets();
 
         Debug.Log(
-            "[MagicGameSetup] ติดตั้งเสร็จแล้ว\n"
-            + "กด Play แล้วกดปุ่ม 'สร้างห้อง' มุมซ้ายบน\n"
-            + "A/D = เดินซ้ายขวา | ลากเมาส์ = เขียนคาถา | Space = ยืนยัน | เลื่อนเมาส์เล็ง | Space = ยิง | Esc = ยกเลิก\n"
-            + "วงกลม=น้ำ  สามเหลี่ยม=ไฟ  สี่เหลี่ยม=ดิน  ขีดตรง 4 ขีด=ลม"
+            "[MagicGameSetup] ติดตั้งเสร็จแล้ว — แยกเป็น 2 ซีนแล้ว\n"
+            + $"  {LobbyScenePath}  ห้องรอ (กด Play จากซีนนี้)\n"
+            + $"  {GameScenePath}  สนามรบ\n\n"
+            + "Host กด 'สร้างห้อง' -> รอเพื่อนเข้า -> กด 'เริ่มเกม' ทุกคนจะถูกพาไปสนามรบพร้อมกัน\n"
+            + "A/D = เดิน | ลากเมาส์ = เขียนคาถา | Space = ยืนยัน | เล็ง | Space = ยิง | Esc = ยกเลิก\n"
+            + "วาดข้าง ๆ ตัว = ยิง | วาดทับตัวเอง = กางโล่\n"
+            + "วงกลม=น้ำ สามเหลี่ยม=ไฟ สี่เหลี่ยม=ดิน ขีดตรง 4 ขีด=ลม"
         );
+    }
+
+    // ---------- ซีน ----------
+
+    /// <summary>
+    /// สนามรบ มีแค่พื้น กล้อง และแสง
+    /// ไม่มี NetworkManager เพราะตัวนั้นอยู่ในซีนห้องรอและติดตามข้ามซีนมาเอง
+    /// ถ้าใส่ไว้สองซีนจะกลายเป็นมีสองตัวชนกันตอนโหลด
+    /// </summary>
+    private static void BuildGameScene(Sprite squareSprite)
+    {
+        Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+        CreateCamera();
+        CreateGlobalLight();
+        CreateGround(squareSprite);
+        CreateEventSystem();
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene, GameScenePath);
+    }
+
+    /// <summary>
+    /// ห้องรอ เป็นซีนที่เปิดตอนเริ่มเกม
+    /// NetworkManager กับเมนูอยู่บน GameObject เดียวกัน เพราะ Netcode สั่ง
+    /// DontDestroyOnLoad ให้ NetworkManager ตอนเริ่มทำงาน เมนูจึงติดตามไปด้วย
+    /// ทำให้ยังกดออกจากห้องและดูรหัสห้องได้แม้อยู่ในสนามรบแล้ว
+    /// </summary>
+    private static void BuildLobbyScene(GameObject playerPrefab)
+    {
+        Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+        CreateCamera();
+        CreateGlobalLight();
+        CreateEventSystem();
+
+        var go = new GameObject("NetworkManager");
+
+        var manager = go.AddComponent<NetworkManager>();
+        var transport = go.AddComponent<UnityTransport>();
+
+        if (manager.NetworkConfig == null)
+            manager.NetworkConfig = new NetworkConfig();
+
+        manager.NetworkConfig.NetworkTransport = transport;
+        manager.NetworkConfig.PlayerPrefab = playerPrefab;
+        // ต้องเปิด ไม่งั้น Host สั่งโหลดซีนแล้วคนอื่นไม่ตามไปด้วย
+        manager.NetworkConfig.EnableSceneManagement = true;
+
+        go.AddComponent<OnlineUI2D>();
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene, LobbyScenePath);
+    }
+
+    /// <summary>
+    /// ใส่ทั้งสองซีนลง Build Settings โดยให้ห้องรออยู่ลำดับแรก
+    /// Netcode โหลดได้เฉพาะซีนที่อยู่ในรายการนี้ ถ้าลืมใส่จะกด "เริ่มเกม" แล้วเงียบ
+    /// </summary>
+    private static void RegisterScenesInBuildSettings()
+    {
+        var scenes = new System.Collections.Generic.List<EditorBuildSettingsScene>
+        {
+            new EditorBuildSettingsScene(LobbyScenePath, true),
+            new EditorBuildSettingsScene(GameScenePath, true),
+        };
+
+        // เก็บซีนอื่นที่ผู้ใช้ใส่ไว้เองต่อท้าย ไม่ไปลบของเขาทิ้ง
+        foreach (EditorBuildSettingsScene existing in EditorBuildSettings.scenes)
+        {
+            if (existing.path == LobbyScenePath || existing.path == GameScenePath) continue;
+            scenes.Add(existing);
+        }
+
+        EditorBuildSettings.scenes = scenes.ToArray();
     }
 
     // ---------- ภาพวงเวท ----------
@@ -235,9 +316,9 @@ public static class MagicGameSetup
     /// แต่สร้างไว้ให้เลย เผื่ออยากเปลี่ยนเป็นแนวมีพื้นให้ยืน แค่ตั้ง
     /// Gravity Scale ใน Network Player 2D เป็น 3 ก็ใช้ได้ทันที
     /// </summary>
-    private static void SetupGround(Sprite squareSprite)
+    private static void CreateGround(Sprite squareSprite)
     {
-        GameObject go = ReplaceSceneObject("Ground");
+        var go = new GameObject("Ground");
 
         go.transform.position = new Vector3(0f, -4f, 0f);
         go.transform.localScale = new Vector3(40f, 1.5f, 1f);
@@ -369,33 +450,8 @@ public static class MagicGameSetup
 
     // ---------- ของในฉาก ----------
 
-    private static void SetupNetworkManager(GameObject playerPrefab)
+    private static void CreateEventSystem()
     {
-        GameObject go = ReplaceSceneObject("NetworkManager");
-
-        var manager = go.AddComponent<NetworkManager>();
-        var transport = go.AddComponent<UnityTransport>();
-
-        if (manager.NetworkConfig == null)
-            manager.NetworkConfig = new NetworkConfig();
-
-        manager.NetworkConfig.NetworkTransport = transport;
-        manager.NetworkConfig.PlayerPrefab = playerPrefab;
-
-        EditorUtility.SetDirty(go);
-    }
-
-    private static void SetupOnlineUI()
-    {
-        GameObject go = ReplaceSceneObject("OnlineUI");
-        go.AddComponent<OnlineUI2D>();
-        EditorUtility.SetDirty(go);
-    }
-
-    private static void SetupEventSystem()
-    {
-        if (Object.FindFirstObjectByType<EventSystem>() != null) return;
-
         var go = new GameObject("EventSystem");
         go.AddComponent<EventSystem>();
         // โปรเจกต์ตั้ง Input System แบบใหม่ ต้องใช้โมดูลของแพ็กเกจนั้น
@@ -403,28 +459,35 @@ public static class MagicGameSetup
         go.AddComponent<InputSystemUIInputModule>();
     }
 
-    private static void SetupCamera()
+    private static void CreateCamera()
     {
-        Camera camera = Camera.main;
-        if (camera == null) return;
-
-        camera.orthographic = true;
-        camera.orthographicSize = 6f;
+        var go = new GameObject("Main Camera");
+        go.tag = "MainCamera";
 
         // กล้อง 2D ต้องถอยออกมาจากระนาบ z = 0 ไม่งั้นมองไม่เห็นอะไรเลย
-        Vector3 position = camera.transform.position;
-        if (position.z >= -1f) camera.transform.position = new Vector3(position.x, position.y, -10f);
+        go.transform.position = new Vector3(0f, 0f, -10f);
 
-        EditorUtility.SetDirty(camera.gameObject);
+        var camera = go.AddComponent<Camera>();
+        camera.orthographic = true;
+        camera.orthographicSize = 6f;
+        camera.clearFlags = CameraClearFlags.SolidColor;
+        camera.backgroundColor = new Color(0.07f, 0.08f, 0.12f);
+
+        // กล้องเป็นฝ่ายตามหาตัวละคร ไม่ใช่ตัวละครลากกล้องมาผูก
+        // เพราะการโหลดซีนใหม่จะทำลายกล้องเก่าแต่ตัวละครย้ายข้ามซีนไปด้วย
+        go.AddComponent<CameraFollow2D>();
     }
 
-    /// <summary>ลบของเดิมชื่อเดียวกันในฉากทิ้งก่อน เพื่อให้สั่งซ้ำได้โดยไม่ซ้อนกัน</summary>
-    private static GameObject ReplaceSceneObject(string name)
+    /// <summary>
+    /// แสงรวมของฉาก จำเป็นสำหรับ URP 2D
+    /// ถ้าไม่มี sprite ที่ใช้วัสดุแบบรับแสงจะกลายเป็นสีดำสนิททั้งฉาก
+    /// </summary>
+    private static void CreateGlobalLight()
     {
-        GameObject existing = GameObject.Find(name);
-        if (existing != null) Object.DestroyImmediate(existing);
-
-        return new GameObject(name);
+        var go = new GameObject("Global Light 2D");
+        var light = go.AddComponent<Light2D>();
+        light.lightType = Light2D.LightType.Global;
+        light.intensity = 1f;
     }
 
     private static void EnsureFolder(string path)
