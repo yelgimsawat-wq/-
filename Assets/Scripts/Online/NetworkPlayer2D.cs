@@ -16,15 +16,24 @@ using UnityEngine.InputSystem;
 /// โปรเจกต์นี้ตั้ง Active Input Handling เป็น Input System แบบใหม่
 /// จึงใช้ Keyboard.current ไม่ใช่ Input.GetAxisRaw ของระบบเก่า (เรียกแล้วจะ error)
 /// </summary>
+// บังคับให้มี Collider ติดมาด้วยเสมอ
+// Unity จะไม่ยอมให้ลบ component ที่ถูก require ไว้ และจะเติมให้เองถ้าหายไป
+// ใส่ไว้เพราะเคยมีอุบัติเหตุลบ Collider ทิ้งแล้วตัวละครร่วงทะลุพื้นโดยไม่มี error
+// ถ้าวันหนึ่งอยากใช้ collider ทรงอื่น ให้ลบบรรทัด RequireComponent อันล่างออก
 [RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(CircleCollider2D))]
 public class NetworkPlayer2D : NetworkBehaviour
 {
     [Header("การเดิน")]
     [SerializeField] private float moveSpeed = 5f;
 
-    [Tooltip("แรงโน้มถ่วง ค่าเริ่มต้นเป็น 0 เพื่อให้เล่นได้แม้ยังไม่มีพื้นในฉาก "
-             + "ตั้ง 3 ถ้าอยากได้แบบมีพื้นให้ยืน (ต้องมี Ground ในฉากด้วย)")]
+    [Tooltip("ตัวคูณแรงโน้มถ่วง ไม่ใช่ค่า m/s2 — Unity ดึงลง 9.81 อยู่แล้ว "
+             + "ใส่ 1 = แรงโน้มถ่วงเท่าโลกจริง, 2-3 = ตกเร็วแบบเกมแพลตฟอร์ม, "
+             + "0 = ลอยอยู่กับที่ (ค่าที่มากเกินไปจะทำให้ตกเร็วจนทะลุพื้น)")]
     [SerializeField] private float gravityScale = 0f;
+
+    [Tooltip("ความเร็วตกสูงสุด กันตกเร็วจนทะลุพื้นเมื่อตั้งแรงโน้มถ่วงไว้สูง")]
+    [SerializeField] private float maxFallSpeed = 25f;
 
     [Tooltip("แรงหน่วงแนวนอน ทำให้หยุดเร็วเวลาปล่อยปุ่ม")]
     [SerializeField] private float stopDamping = 12f;
@@ -67,7 +76,10 @@ public class NetworkPlayer2D : NetworkBehaviour
         body.gravityScale = gravityScale;
         // หยุดตัวเองด้วย MoveTowards อยู่แล้ว ถ้ามี damping ซ้ำจะเดินหนืด
         body.linearDamping = 0f;
+        // ตรวจการชนแบบต่อเนื่อง ตัวที่ตกเร็วจะได้ไม่กระโดดข้ามพื้นไปในเฟรมเดียว
+        body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
+        EnsureCollider();
         spawnPosition = transform.position;
 
         if (!IsOwner)
@@ -126,6 +138,24 @@ public class NetworkPlayer2D : NetworkBehaviour
         }
     }
 
+    /// <summary>
+    /// ไม่มี Collider = ไม่มีอะไรให้ชนพื้น ตัวละครจะร่วงทะลุลงไปเรื่อย ๆ
+    /// โดยไม่มี error ให้เห็นเลย เป็นอาการที่หาสาเหตุยากมาก
+    /// RequireComponent กันไว้ชั้นหนึ่งแล้ว ตรงนี้เป็นชั้นสุดท้ายเผื่อใน build
+    /// </summary>
+    private void EnsureCollider()
+    {
+        if (GetComponent<Collider2D>() != null) return;
+
+        var added = gameObject.AddComponent<CircleCollider2D>();
+        added.radius = 0.5f;
+
+        Debug.LogWarning(
+            "[NetworkPlayer2D] ตัวละครไม่มี Collider จึงเติม CircleCollider2D ให้อัตโนมัติ\n"
+            + "ควรใส่ไว้ใน Prefab ด้วย สั่ง Tools > เกมวาดวงเวท > ติดตั้งฉากอัตโนมัติ",
+            this);
+    }
+
     private void FixedUpdate()
     {
         if (!IsOwner) return;
@@ -151,7 +181,11 @@ public class NetworkPlayer2D : NetworkBehaviour
             velocity.x = moveInput * moveSpeed;
         }
 
-        // ไม่แตะแกน y เลย ปล่อยให้แรงโน้มถ่วงจัดการ
+        // จำกัดความเร็วตก ถ้าปล่อยให้เร่งไปเรื่อย ๆ ตอนตั้ง Gravity Scale สูง ๆ
+        // ระยะที่เคลื่อนในหนึ่งเฟรมจะยาวกว่าความหนาของพื้นจนทะลุผ่านไปได้
+        if (maxFallSpeed > 0f && velocity.y < -maxFallSpeed)
+            velocity.y = -maxFallSpeed;
+
         body.linearVelocity = velocity;
     }
 }
