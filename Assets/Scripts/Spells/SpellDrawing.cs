@@ -73,6 +73,12 @@ namespace MagicDrawing
         [Tooltip("พิมพ์ผลการตรวจลง Console เอาไว้จูนค่า")]
         [SerializeField] private bool logRecognition = true;
 
+        [Header("ส่งเส้นให้อีกฝ่ายเห็นสด ๆ")]
+        [Tooltip("ส่งทุกกี่วินาที ยิ่งถี่ยิ่งลื่นแต่กินแบนด์วิดท์มากขึ้น")]
+        [SerializeField] private float liveSyncInterval = 0.1f;
+
+        private float nextSyncTime;
+
         private SpellCaster caster;
         private NetworkPlayer2D player;
 
@@ -176,6 +182,15 @@ namespace MagicDrawing
 
             currentStroke.Add(world);
             RedrawActiveLine();
+
+            // ส่งให้อีกฝ่ายเห็นเป็นระยะ ไม่ส่งทุกจุดที่เพิ่ม
+            // ถ้าส่งทุกจุดจะเป็นสิบครั้งต่อวินาทีต่อคน กินแบนด์วิดท์เกินจำเป็น
+            // ทั้งที่ตาคนแยกความต่างระดับนั้นไม่ออกอยู่แล้ว
+            if (Time.time >= nextSyncTime)
+            {
+                nextSyncTime = Time.time + liveSyncInterval;
+                caster.SyncStroke(strokes.Count, currentStroke.ToArray());
+            }
         }
 
         private void EndStroke()
@@ -194,6 +209,10 @@ namespace MagicDrawing
                 if (strokes.Count == 0) ResetToIdle();
                 return;
             }
+
+            // ส่งครั้งสุดท้ายให้ครบเส้น ไม่งั้นอีกฝ่ายจะเห็นขีดขาดตรงปลาย
+            // เพราะการส่งเป็นระยะอาจตัดจบก่อนถึงจุดสุดท้าย
+            caster.SyncStroke(strokes.Count, stroke);
 
             strokes.Add(stroke);
             activeLine = null;
@@ -521,6 +540,10 @@ namespace MagicDrawing
             strokes.Clear();
             currentStroke.Clear();
             activeLine = null;
+
+            // ล้างของที่ค้างบนจอคนอื่นด้วย ไม่งั้นเส้นที่เรายกเลิกไปแล้ว
+            // จะยังลอยอยู่บนจอคู่ต่อสู้ตลอดเกม
+            if (caster != null) caster.ClearSyncedStrokes();
         }
 
         private void DrawAimArrow()

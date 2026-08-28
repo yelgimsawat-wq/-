@@ -327,6 +327,8 @@ public static class MagicGameSetup
 
         var caster = root.AddComponent<SpellCaster>();
         root.AddComponent<SpellDrawing>();
+        root.AddComponent<PlayerHealth>();
+        root.AddComponent<SpellPower>();
 
         WireSpellCaster(caster, circlePrefab, projectilePrefab);
 

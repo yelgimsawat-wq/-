@@ -36,6 +36,9 @@ namespace MagicDrawing
         private SpriteRenderer[] renderers;
         private static Sprite runtimeShieldSprite;
 
+        /// <summary>โล่นี้เป็นธาตุอะไร ระบบดาเมจใช้ตัดสินว่าเวทที่ยิงมาแก้ได้ไหม</summary>
+        public SpellElement Element { get; private set; }
+
         /// <summary>โล่ที่กำลังเปิดอยู่ของตัวละครแต่ละตัว ใช้กันซ้อนกันหลายชั้น</summary>
         public static SpellShield FindActiveOn(Transform owner)
         {
@@ -80,6 +83,7 @@ namespace MagicDrawing
 
         public void Play(SpellElement element)
         {
+            Element = element;
             renderers = GetComponentsInChildren<SpriteRenderer>(true);
 
             if (tintByElement)

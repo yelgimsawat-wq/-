@@ -42,6 +42,47 @@ namespace MagicDrawing
             }
         }
 
+        /// <summary>
+        /// ธาตุนี้ชนะธาตุอะไร เป็นวงจรปิด 4 ธาตุ ไม่มีธาตุไหนได้เปรียบกว่าเพื่อน
+        ///
+        ///   น้ำ ชนะ ไฟ  (ดับไฟ)
+        ///   ไฟ ชนะ ลม  (ไฟลามตามลม)
+        ///   ลม ชนะ ดิน (พัดดินจนกร่อน)
+        ///   ดิน ชนะ น้ำ (ดินดูดซับน้ำ)
+        ///
+        /// ออกแบบเป็นวงจรเพื่อไม่ให้มีธาตุที่แข็งที่สุด ผู้เล่นจึงต้องอ่านว่า
+        /// อีกฝ่ายกางโล่อะไรแล้วเลือกธาตุตอบ ไม่ใช่ร่ายธาตุเดิมซ้ำ ๆ
+        /// </summary>
+        public static SpellElement Beats(this SpellElement element)
+        {
+            switch (element)
+            {
+                case SpellElement.Water: return SpellElement.Fire;
+                case SpellElement.Fire:  return SpellElement.Wind;
+                case SpellElement.Wind:  return SpellElement.Earth;
+                default:                 return SpellElement.Water;   // ดิน ชนะ น้ำ
+            }
+        }
+
+        /// <summary>เวทที่ยิงมาเอาชนะโล่ที่กางอยู่ได้ไหม</summary>
+        public static bool CountersShield(this SpellElement attacker, SpellElement shield)
+        {
+            return attacker.Beats() == shield;
+        }
+
+        /// <summary>ธาตุอะไรที่ใช้แก้โล่ธาตุนี้ได้ เอาไว้บอกผู้เล่นบนจอ</summary>
+        public static SpellElement CounterFor(SpellElement shield)
+        {
+            foreach (SpellElement candidate in new[]
+            {
+                SpellElement.Water, SpellElement.Fire, SpellElement.Earth, SpellElement.Wind
+            })
+            {
+                if (candidate.Beats() == shield) return candidate;
+            }
+            return SpellElement.Wind;
+        }
+
         /// <summary>กันค่าที่ส่งข้ามเน็ตมาเพี้ยนหรือมาจากเวอร์ชันที่ไม่ตรงกัน</summary>
         public static SpellElement FromNetworkId(byte id)
         {

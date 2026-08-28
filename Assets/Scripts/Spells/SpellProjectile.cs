@@ -23,9 +23,21 @@ namespace MagicDrawing
         [Tooltip("หมุนตัวเองระหว่างพุ่ง (องศาต่อวินาที)")]
         [SerializeField] private float spinDegreesPerSecond = 0f;
 
+        [Header("การชน (ทำงานเฉพาะฝั่ง Server)")]
+        [Tooltip("รัศมีที่ใช้ตรวจว่าโดนตัวใคร")]
+        [SerializeField] private float hitRadius = 0.35f;
+
         private Vector2 velocity;
         private float remaining;
         private bool launched;
+
+        // ฝั่งที่มีสิทธิ์ตัดสินการชน มีแค่ Server เท่านั้นที่เป็น true
+        // เครื่องผู้เล่นสร้างลูกเวทเหมือนกันแต่เป็นภาพล้วน ๆ ไม่คิดดาเมจ
+        // ถ้าปล่อยให้ทุกเครื่องคิด คนหนึ่งยิงจะกลายเป็นโดนหลายครั้ง
+        private bool authoritative;
+        private int damage;
+        private SpellElement element;
+        private Transform caster;
 
         private static Sprite runtimeOrbSprite;
         private static Material runtimeTrailMaterial;
@@ -112,15 +124,28 @@ namespace MagicDrawing
         }
 
         /// <summary>เรียกทันทีหลัง Instantiate เพื่อกำหนดทิศและธาตุ</summary>
-        public void Launch(Vector2 direction, SpellElement element)
+        /// <param name="isAuthoritative">true เฉพาะบน Server ตัวที่จะคิดดาเมจ</param>
+        /// <param name="hitDamage">ดาเมจพื้นฐานก่อนคิดผลของโล่</param>
+        /// <param name="owner">คนร่าย เอาไว้กันยิงโดนตัวเอง</param>
+        public void Launch(
+            Vector2 direction,
+            SpellElement spellElement,
+            bool isAuthoritative = false,
+            int hitDamage = 0,
+            Transform owner = null)
         {
             velocity = direction.normalized * speed;
             remaining = lifetime;
             launched = true;
 
+            element = spellElement;
+            authoritative = isAuthoritative;
+            damage = hitDamage;
+            caster = owner;
+
             if (!tintByElement) return;
 
-            Color tint = element.ToColor();
+            Color tint = spellElement.ToColor();
 
             foreach (SpriteRenderer renderer in GetComponentsInChildren<SpriteRenderer>(true))
             {
@@ -147,8 +172,39 @@ namespace MagicDrawing
             if (!Mathf.Approximately(spinDegreesPerSecond, 0f))
                 transform.Rotate(0f, 0f, spinDegreesPerSecond * Time.deltaTime);
 
+            if (authoritative && CheckHit()) return;
+
             remaining -= Time.deltaTime;
             if (remaining <= 0f) Destroy(gameObject);
+        }
+
+        /// <summary>
+        /// ตรวจว่าโดนใครไหม คืน true ถ้าโดนแล้วลูกเวทถูกทำลายไปแล้ว
+        ///
+        /// ใช้ OverlapCircle แทน Collider จริงเพราะลูกเวทเคลื่อนที่ด้วย transform
+        /// ไม่ได้ใช้ Rigidbody จึงไม่มี event การชนให้ดัก และวิธีนี้ควบคุมได้ตรงกว่า
+        /// ว่าจะให้ชนอะไรบ้าง
+        /// </summary>
+        private bool CheckHit()
+        {
+            Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, hitRadius);
+
+            foreach (Collider2D hit in hits)
+            {
+                if (hit == null) continue;
+
+                var health = hit.GetComponentInParent<PlayerHealth>();
+                if (health == null) continue;
+
+                // ยิงโดนตัวเองไม่นับ ไม่งั้นเวทจะระเบิดใส่คนร่ายทันทีที่ออกจากมือ
+                if (caster != null && health.transform == caster) continue;
+
+                health.TakeSpellDamage(damage, element);
+                Destroy(gameObject);
+                return true;
+            }
+
+            return false;
         }
     }
 }
