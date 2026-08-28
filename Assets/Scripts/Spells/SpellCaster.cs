@@ -37,6 +37,9 @@ namespace MagicDrawing
 
             [Tooltip("Prefab ลูกเวทที่พุ่งออกไป ปล่อยว่างได้ถ้ายังไม่มี")]
             public SpellProjectile projectilePrefab;
+
+            [Tooltip("Prefab โล่ธาตุ ปล่อยว่างได้ถ้ายังไม่มี")]
+            public SpellShield shieldPrefab;
         }
 
         [Header("ตำแหน่งที่เวทจะออก")]
@@ -51,6 +54,9 @@ namespace MagicDrawing
 
         [Tooltip("ลูกเวทสำรอง ใช้เมื่อธาตุนั้นยังไม่ได้ใส่ของตัวเอง")]
         [SerializeField] private SpellProjectile fallbackProjectilePrefab;
+
+        [Tooltip("โล่สำรอง ใช้เมื่อธาตุนั้นยังไม่ได้ใส่ของตัวเอง")]
+        [SerializeField] private SpellShield fallbackShieldPrefab;
 
         [Header("เส้นที่วาดค้างไว้บนแผนที่")]
         [Tooltip("แสดงเส้นที่ผู้เล่นเขียนให้ทุกคนเห็นด้วย ปิดได้ถ้าอยากเห็นแค่วงเวท")]
@@ -145,6 +151,59 @@ namespace MagicDrawing
                 : CreateFallbackProjectile(origin, rotation);
 
             projectile.Launch(aim, element);
+        }
+
+        /// <summary>
+        /// ขอกางโล่ธาตุรอบตัวเอง เรียกจากเครื่องเจ้าของตัวละคร
+        /// ไม่ต้องส่งจุดที่วาดไปด้วย เพราะโล่ไม่ได้ใช้รูปทรง ใช้แค่ธาตุ
+        /// ประหยัดข้อมูลกว่าการยิงมาก
+        /// </summary>
+        public void RequestShield(SpellElement element)
+        {
+            if (!IsOwner) return;
+            if (IsOnCooldown) return;
+
+            nextAllowedCastTime = Time.time + castCooldown;
+            CastShieldServerRpc((byte)element);
+        }
+
+        [ServerRpc]
+        private void CastShieldServerRpc(byte elementId)
+        {
+            CastShieldClientRpc(elementId);
+        }
+
+        [ClientRpc]
+        private void CastShieldClientRpc(byte elementId)
+        {
+            PlayShield(SpellElementExtensions.FromNetworkId(elementId));
+        }
+
+        private void PlayShield(SpellElement element)
+        {
+            // กางโล่ใหม่ทับของเดิม ต้องเก็บอันเก่าก่อน ไม่งั้นจะซ้อนกันหลายชั้น
+            // แล้วสีของธาตุจะปนกันจนดูไม่ออกว่ากำลังใช้โล่อะไรอยู่
+            SpellShield existing = SpellShield.FindActiveOn(transform);
+            if (existing != null) Destroy(existing.gameObject);
+
+            ElementVisual visual = FindVisual(element);
+
+            SpellShield prefab = visual != null && visual.shieldPrefab != null
+                ? visual.shieldPrefab
+                : fallbackShieldPrefab;
+
+            SpellShield shield;
+            if (prefab != null)
+            {
+                shield = Instantiate(prefab, transform.position, Quaternion.identity);
+                shield.AttachTo(transform);
+            }
+            else
+            {
+                shield = SpellShield.CreateFallback(transform);
+            }
+
+            shield.Play(element);
         }
 
         private static bool warnedAboutMissingProjectile;

@@ -57,6 +57,10 @@ namespace MagicDrawing
         [Range(0f, 1f)]
         [SerializeField] private float minimumScore = 0.55f;
 
+        [Tooltip("ระยะผ่อนผันของการ \"วาดทับตัวเอง\" ยิ่งมากยิ่งกลายเป็นโล่ง่าย "
+                 + "ถ้ารู้สึกว่ายิงใกล้ ๆ ตัวแล้วกลายเป็นโล่บ่อย ให้ลดค่านี้ลง")]
+        [SerializeField] private float shieldMargin = 0.4f;
+
         [Header("ปุ่ม")]
         [SerializeField] private Key confirmKey = Key.Space;
         [SerializeField] private Key cancelKey = Key.Escape;
@@ -217,10 +221,56 @@ namespace MagicDrawing
                 return;
             }
 
+            // วาดทับตัวเอง = ขอโล่ ไม่ใช่ขอยิง
+            // ข้ามขั้นเล็งไปเลยเพราะโล่ไม่มีทิศ ตำแหน่งที่วาดคือคำสั่งอยู่แล้ว
+            if (IsDrawnOverSelf())
+            {
+                caster.RequestShield(result.Element);
+
+                if (logRecognition)
+                    Debug.Log($"[SpellDrawing] วาดทับตัวเอง -> กางโล่{result.Element.ToThai()}");
+
+                statusMessage = $"กางโล่{result.Element.ToThai()}";
+                ClearStrokes();
+                ResetToIdle();
+                return;
+            }
+
             phase = CastPhase.Aiming;
             aimDirection = DefaultAimDirection();
             TintStrokes(result.Element.ToColor());
             statusMessage = $"เวท{result.Element.ToThai()}พร้อม — เลื่อนเมาส์เล็ง แล้วกด Space ยิง";
+        }
+
+        /// <summary>
+        /// ตัวละครอยู่ในกรอบของสิ่งที่วาดไหม
+        ///
+        /// ใช้กรอบสี่เหลี่ยมที่ครอบทุกขีดรวมกัน แทนการวัดระยะจากจุดกึ่งกลาง
+        /// เพราะผู้เล่นอาจวาดวงใหญ่ครอบตัวแบบไม่ได้อยู่กึ่งกลางพอดี
+        /// หรือขีดหลายขีดพาดผ่านตัว ซึ่งทั้งสองแบบก็ควรนับว่า "ทับตัวเอง"
+        /// </summary>
+        private bool IsDrawnOverSelf()
+        {
+            if (strokes.Count == 0) return false;
+
+            float minX = float.MaxValue, minY = float.MaxValue;
+            float maxX = float.MinValue, maxY = float.MinValue;
+
+            foreach (Vector2[] stroke in strokes)
+            {
+                foreach (Vector2 point in stroke)
+                {
+                    if (point.x < minX) minX = point.x;
+                    if (point.x > maxX) maxX = point.x;
+                    if (point.y < minY) minY = point.y;
+                    if (point.y > maxY) maxY = point.y;
+                }
+            }
+
+            Vector2 self = transform.position;
+
+            return self.x >= minX - shieldMargin && self.x <= maxX + shieldMargin
+                && self.y >= minY - shieldMargin && self.y <= maxY + shieldMargin;
         }
 
         // ---------- ขั้นเล็งทิศ ----------
@@ -537,7 +587,8 @@ namespace MagicDrawing
                     hint = $"เวท{pendingSpell.Element.ToThai()}  |  เลื่อนเมาส์เล็ง  |  Space หรือคลิก = ยิง  |  Esc = ยกเลิก";
                     break;
                 default:
-                    hint = "A/D เดิน  |  ลากเมาส์เขียนคาถา  |  วงกลม=น้ำ สามเหลี่ยม=ไฟ สี่เหลี่ยม=ดิน ขีด 4 ขีด=ลม";
+                    hint = "A/D เดิน  |  ลากเมาส์เขียนคาถา  |  วงกลม=น้ำ สามเหลี่ยม=ไฟ สี่เหลี่ยม=ดิน ขีด 4 ขีด=ลม"
+                           + "\nวาดข้าง ๆ ตัว = ยิงออกไป  |  วาดทับตัวเอง = กางโล่ธาตุนั้น";
                     break;
             }
 

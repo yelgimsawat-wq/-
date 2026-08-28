@@ -23,8 +23,13 @@ namespace MagicDrawing
         [Tooltip("ย้อมสีวงเวทตามธาตุ ปิดถ้าอาร์ตแต่ละธาตุมีสีในตัวอยู่แล้ว")]
         [SerializeField] private bool tintByElement = true;
 
-        [Tooltip("ใช้โหมด Additive ทำให้ส่วนดำกลายเป็นโปร่งใสและดูเรืองแสง")]
-        [SerializeField] private bool useAdditiveBlending = true;
+        // เคยมีตัวเลือก Additive ตรงนี้ ถอดออกแล้วเพราะมันเปลี่ยนวัสดุไปใช้เชเดอร์
+        // Particles/Standard Unlit ซึ่งเป็นของ Built-in Render Pipeline
+        // โปรเจกต์นี้ใช้ URP ที่วาดเชเดอร์นั้นไม่ได้ ผลคือวงเวทหายไปทั้งวง
+        // โดยไม่มี error ให้เห็น
+        //
+        // ไม่จำเป็นต้องใช้ Additive อยู่แล้ว เพราะภาพวงเวทมีพื้นหลังโปร่งใสมาแต่แรก
+        // วัสดุเดิมของ SpriteRenderer (Sprites-Default) จึงแสดงผลถูกต้องและเข้ากับ URP
 
         [Header("การจัดชั้นการซ้อน")]
         [Tooltip("ชื่อ Sorting Layer ที่ต้องการ ปล่อยว่าง = ไม่ไปยุ่งกับค่าเดิมใน prefab")]
@@ -71,40 +76,10 @@ namespace MagicDrawing
                     renderer.color = new Color(tint.r, tint.g, tint.b, renderer.color.a);
                 }
 
-                if (useAdditiveBlending)
-                    renderer.material = AdditiveMaterial;
-
                 if (!string.IsNullOrEmpty(sortingLayerName))
                     renderer.sortingLayerName = sortingLayerName;
 
                 renderer.sortingOrder = sortingOrder;
-            }
-        }
-
-        private static Material additiveMaterial;
-
-        /// <summary>
-        /// วัสดุ Additive ตัวเดียวใช้ร่วมกันทุกวงเวท
-        /// สร้างใหม่ทุกครั้งที่ร่ายจะทำให้ Unity มองเป็นคนละวัสดุ ทำ batching ไม่ได้
-        /// </summary>
-        private static Material AdditiveMaterial
-        {
-            get
-            {
-                if (additiveMaterial == null)
-                {
-                    Shader shader = Shader.Find("Particles/Standard Unlit");
-                    if (shader == null) shader = Shader.Find("Sprites/Default");
-
-                    additiveMaterial = new Material(shader);
-
-                    // ค่าพวกนี้มีเฉพาะใน shader ของ Particles ถ้าใช้ Sprites/Default จะถูกข้ามไปเอง
-                    if (additiveMaterial.HasProperty("_Mode")) additiveMaterial.SetFloat("_Mode", 4f);
-                    if (additiveMaterial.HasProperty("_SrcBlend")) additiveMaterial.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                    if (additiveMaterial.HasProperty("_DstBlend")) additiveMaterial.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
-                    if (additiveMaterial.HasProperty("_ZWrite")) additiveMaterial.SetFloat("_ZWrite", 0f);
-                }
-                return additiveMaterial;
             }
         }
 
