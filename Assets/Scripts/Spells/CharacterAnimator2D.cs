@@ -48,6 +48,7 @@ namespace MagicDrawing
 
         private Vector3 lastPosition;
         private float phase;
+        private NetworkPlayer2D player;
 
         private Vector3 baseScale;
         private float currentTilt;
@@ -95,6 +96,9 @@ namespace MagicDrawing
             baseScale = transform.localScale;
             currentScale = baseScale;
             lastPosition = transform.position;
+
+            // อยู่บน GameObject ลูก ตัวคุมการเดินอยู่บนตัวแม่
+            player = GetComponentInParent<NetworkPlayer2D>();
         }
 
         private void OnEnable()
@@ -113,7 +117,18 @@ namespace MagicDrawing
             float horizontalSpeed = Mathf.Abs(delta.x) / dt;
             float verticalSpeed = Mathf.Abs(delta.y) / dt;
 
-            bool airborne = verticalSpeed > airThreshold;
+            // ถามตัวคุมการเดินตรง ๆ ว่าเท้าแตะพื้นอยู่ไหม แม่นกว่าเดาจากความเร็ว
+            //
+            // เดิมเดาจากความเร็วแนวดิ่งอย่างเดียว ซึ่งเด้งเกินเกณฑ์ได้ง่ายมาก
+            // ตอนเดินบนพื้น เพราะฟิสิกส์ดันตัวขึ้นลงเล็กน้อยทุกก้าว
+            // พอถูกตัดสินว่าลอยอยู่ มุมเอียงจะถูกบังคับเป็นศูนย์ ตัวเลยไม่โยก
+            //
+            // เก็บทางเดาไว้เป็นทางสำรอง เผื่อเอา component นี้ไปใช้กับของอื่น
+            // ที่ไม่มี NetworkPlayer2D อยู่ด้วย
+            bool airborne = player != null
+                ? !player.IsGrounded
+                : verticalSpeed > airThreshold;
+
             bool walking = !airborne && horizontalSpeed > walkThreshold;
 
             float targetTilt;

@@ -206,6 +206,15 @@ public class NetworkPlayer2D : NetworkBehaviour
 
     private void FixedUpdate()
     {
+        // ตรวจพื้นให้ทุกตัว ไม่ใช่เฉพาะตัวเรา
+        //
+        // เดิมอยู่ใต้บรรทัด IsOwner ข้างล่าง ทำให้ตัวละครของคนอื่นมี IsGrounded
+        // เป็น false ตลอด อนิเมชันจึงคิดว่าเขาลอยอยู่กลางอากาศตลอดเวลา
+        // แล้วไม่ยอมโยกตัวตอนเดิน
+        //
+        // เป็นการถามฟิสิกส์เฉย ๆ ไม่ได้ขยับอะไร จึงเรียกฝั่งไหนก็ปลอดภัย
+        UpdateGrounded();
+
         if (!IsOwner) return;
 
         // ตาข่ายกันตก: ถ้าฉากยังไม่มีพื้นหรือมีช่องโหว่ ก็ยังเล่นต่อได้
@@ -228,8 +237,6 @@ public class NetworkPlayer2D : NetworkBehaviour
         {
             velocity.x = moveInput * moveSpeed;
         }
-
-        UpdateGrounded();
 
         // ยอมให้กระโดดได้อีกนิดหลังเพิ่งตกจากขอบ (coyote time)
         // เกมแพลตฟอร์มเกือบทุกเกมทำแบบนี้ เพราะคนกดช้ากว่าที่คิดเสมอ
