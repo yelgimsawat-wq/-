@@ -215,6 +215,29 @@ namespace MagicDrawing
         /// ใช้ OnGUI เพราะไม่ต้องตั้ง Canvas หรือ prefab เพิ่มเลย
         /// ถ้าจะทำ UI จริงจังค่อยเปลี่ยนไปใช้ world-space Canvas ทีหลัง
         /// </summary>
+        private GUIStyle nameLabelStyleCache;
+
+        /// <summary>
+        /// สร้างสไตล์ครั้งเดียวแล้วใช้ซ้ำ
+        /// GUIStyle ที่สร้างใหม่ทุกเฟรมใน OnGUI ทำให้เกิดขยะหน่วยความจำเยอะมาก
+        /// </summary>
+        private GUIStyle nameLabelStyle
+        {
+            get
+            {
+                if (nameLabelStyleCache == null)
+                {
+                    nameLabelStyleCache = new GUIStyle(GUI.skin.label)
+                    {
+                        alignment = TextAnchor.MiddleCenter,
+                        fontStyle = FontStyle.Bold,
+                    };
+                    nameLabelStyleCache.normal.textColor = Color.white;
+                }
+                return nameLabelStyleCache;
+            }
+        }
+
         private void OnGUI()
         {
             if (!showHealthBar || !IsSpawned) return;
@@ -248,12 +271,20 @@ namespace MagicDrawing
 
             GUI.color = previous;
 
+            // ชื่อผู้เล่นวางเหนือหลอดเลือด จะได้รู้ว่ากำลังยิงใคร
+            var appearance = GetComponent<PlayerAppearance>();
+            if (appearance != null && !string.IsNullOrEmpty(appearance.DisplayName))
+            {
+                var nameRect = new Rect(back.x - 40f, back.y - 20f, width + 80f, 20f);
+                GUI.Label(nameRect, appearance.DisplayName, nameLabelStyle);
+            }
+
             // บอกธาตุของโล่ที่กางอยู่ และธาตุที่ใช้แก้ได้ ให้คู่ต่อสู้วางแผนได้
             SpellShield shield = SpellShield.FindActiveOn(transform);
             if (shield != null)
             {
                 SpellElement counter = SpellElementExtensions.CounterFor(shield.Element);
-                var label = new Rect(back.x - 25f, back.y - 20f, width + 50f, 20f);
+                var label = new Rect(back.x - 25f, back.y + 12f, width + 50f, 20f);
                 GUI.Label(label, $"โล่{shield.Element.ToThai()} (แก้ด้วย{counter.ToThai()})");
             }
         }

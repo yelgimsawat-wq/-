@@ -326,7 +326,8 @@ public static class MagicGameSetup
         scaler.referenceResolution = new Vector2(1920f, 1080f);
         scaler.matchWidthOrHeight = 0.5f;
 
-        GameObject joinPanel = CreatePanel(canvasGo.transform, "JoinPanel", new Vector2(560f, 520f));
+        GameObject profilePanel = CreateProfilePanel(canvasGo.transform, ui);
+        GameObject joinPanel = CreatePanel(canvasGo.transform, "JoinPanel", new Vector2(560f, 580f));
         GameObject roomPanel = CreatePanel(canvasGo.transform, "RoomPanel", new Vector2(560f, 620f));
 
         // ---- หน้าเข้าห้อง ----
@@ -338,6 +339,7 @@ public static class MagicGameSetup
         CreateText(joinPanel.transform, "OrLabel", "— หรือ —", 20, TextColor);
         InputField codeInput = CreateInput(joinPanel.transform, "CodeInput", "ใส่รหัสห้อง");
         Button joinButton = CreateButton(joinPanel.transform, "JoinButton", "เข้าห้องด้วยรหัส");
+        Button editProfileButton = CreateButton(joinPanel.transform, "EditProfileButton", "แก้ไขตัวละคร");
 
         // ---- หน้าในห้อง ----
         Text roleText = CreateText(roomPanel.transform, "RoleText", "คุณเป็นเจ้าของห้อง", 26, AccentColor, FontStyle.Bold);
@@ -372,7 +374,7 @@ public static class MagicGameSetup
         statusRect.anchoredPosition = new Vector2(0f, 40f);
         statusRect.sizeDelta = new Vector2(900f, 40f);
 
-        WireMenuUI(ui, joinPanel, roomPanel, compactPanel, codeInput,
+        WireMenuUI(ui, profilePanel, editProfileButton, joinPanel, roomPanel, compactPanel, codeInput,
             hostButton, joinButton, roleText, roomCodeText, playersText, waitText,
             copyButton, startButton, leaveButton, compactText, compactLeave, statusText);
 
@@ -402,6 +404,7 @@ public static class MagicGameSetup
 
     private static void WireMenuUI(
         OnlineUI2D ui,
+        GameObject profilePanel, Button editProfileButton,
         GameObject joinPanel, GameObject roomPanel, GameObject compactPanel,
         InputField codeInput, Button hostButton, Button joinButton,
         Text roleText, Text roomCodeText, Text playersText, Text waitText,
@@ -410,6 +413,8 @@ public static class MagicGameSetup
     {
         var so = new SerializedObject(ui);
 
+        so.FindProperty("profilePanel").objectReferenceValue = profilePanel;
+        so.FindProperty("editProfileButton").objectReferenceValue = editProfileButton;
         so.FindProperty("joinPanel").objectReferenceValue = joinPanel;
         so.FindProperty("roomPanel").objectReferenceValue = roomPanel;
         so.FindProperty("compactPanel").objectReferenceValue = compactPanel;
@@ -429,6 +434,64 @@ public static class MagicGameSetup
         so.FindProperty("gameSceneName").stringValue = GameSceneName;
 
         so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>
+    /// หน้าตั้งชื่อและวาดตัวละคร เป็นหน้าแรกสุดก่อนเข้าห้อง
+    ///
+    /// ต้องมาก่อนเพราะข้อมูลตัวละครต้องพร้อมตั้งแต่ก่อนต่อเน็ต
+    /// จะได้ส่งไปพร้อมตอนเกิดตัวละคร ไม่ต้องส่งกลางเกมแล้วให้คนอื่นเห็นตัวเปล่าก่อน
+    /// </summary>
+    private static GameObject CreateProfilePanel(Transform canvas, OnlineUI2D ui)
+    {
+        GameObject panel = CreatePanel(canvas, "ProfilePanel", new Vector2(620f, 840f));
+
+        CreateText(panel.transform, "Title", "ตั้งค่าตัวละคร", 40, AccentColor, FontStyle.Bold);
+        CreateText(panel.transform, "NameCaption", "ชื่อของคุณ", 20, TextColor);
+
+        InputField nameInput = CreateInput(panel.transform, "NameInput", "ใส่ชื่อ");
+        nameInput.characterLimit = MagicDrawing.PlayerProfile.MaxNameLength;
+
+        CreateText(panel.transform, "DrawCaption", "วาดตัวละครของคุณ", 20, TextColor);
+
+        // กรอบวาดเป็นสี่เหลี่ยมจัตุรัส เพราะพิกัดที่เก็บเป็น 0..1 ทั้งสองแกน
+        // ถ้ากรอบไม่จัตุรัส รูปจะยืดผิดสัดส่วนตอนเอาไปใช้จริง
+        var areaGo = new GameObject("DrawArea", typeof(Image));
+        areaGo.transform.SetParent(panel.transform, false);
+        areaGo.GetComponent<Image>().color = new Color(0.13f, 0.15f, 0.22f);
+
+        var areaElement = areaGo.AddComponent<LayoutElement>();
+        areaElement.minHeight = 380f;
+        areaElement.preferredHeight = 380f;
+
+        var previewGo = new GameObject("Preview", typeof(RawImage));
+        previewGo.transform.SetParent(areaGo.transform, false);
+        StretchToParent(previewGo.GetComponent<RectTransform>());
+        var preview = previewGo.GetComponent<RawImage>();
+
+        Text sizeHint = CreateText(panel.transform, "SizeHint",
+            "ลากเมาส์ในกรอบเพื่อวาดตัวละคร", 19, TextColor);
+
+        Button undoButton = CreateButton(panel.transform, "UndoButton", "ลบเส้นล่าสุด");
+        Button clearButton = CreateButton(panel.transform, "ClearButton", "ล้างทั้งหมด");
+        Button confirmButton = CreateButton(panel.transform, "ConfirmProfileButton", "ยืนยัน แล้วไปเข้าห้อง");
+
+        var pad = panel.AddComponent<MagicDrawing.ProfileDrawPad>();
+        var padSo = new SerializedObject(pad);
+        padSo.FindProperty("drawArea").objectReferenceValue = areaGo.GetComponent<RectTransform>();
+        padSo.FindProperty("preview").objectReferenceValue = preview;
+        padSo.FindProperty("sizeHint").objectReferenceValue = sizeHint;
+        padSo.ApplyModifiedPropertiesWithoutUndo();
+
+        var uiSo = new SerializedObject(ui);
+        uiSo.FindProperty("nameInput").objectReferenceValue = nameInput;
+        uiSo.FindProperty("drawPad").objectReferenceValue = pad;
+        uiSo.FindProperty("confirmProfileButton").objectReferenceValue = confirmButton;
+        uiSo.FindProperty("undoStrokeButton").objectReferenceValue = undoButton;
+        uiSo.FindProperty("clearDrawingButton").objectReferenceValue = clearButton;
+        uiSo.ApplyModifiedPropertiesWithoutUndo();
+
+        return panel;
     }
 
     /// <summary>
@@ -852,10 +915,17 @@ public static class MagicGameSetup
     {
         var root = new GameObject("Player");
 
-        var renderer = root.AddComponent<SpriteRenderer>();
+        // ภาพอยู่บนลูก ไม่ใช่บนตัวหลัก เพราะอนิเมชันหมุนและย่อเฉพาะภาพ
+        // ถ้าหมุนตัวหลัก collider จะหมุนตามแล้วตัวละครจะจมพื้นหรือลอยขึ้นเอง
+        var visual = new GameObject("Visual");
+        visual.transform.SetParent(root.transform, false);
+
+        var renderer = visual.AddComponent<SpriteRenderer>();
         renderer.sprite = capsuleSprite;
         renderer.color = Color.white;
         renderer.sortingOrder = 10;
+
+        visual.AddComponent<CharacterAnimator2D>();
 
         var body = root.AddComponent<Rigidbody2D>();
         body.freezeRotation = true;
@@ -878,6 +948,13 @@ public static class MagicGameSetup
         root.AddComponent<SpellDrawing>();
         root.AddComponent<PlayerHealth>();
         root.AddComponent<SpellPower>();
+
+        // ชื่อและรูปที่ผู้เล่นวาดไว้ในเมนู ต้องรู้ว่าจะเอารูปไปใส่ตัวไหน
+        var appearance = root.AddComponent<PlayerAppearance>();
+        var appearanceSo = new SerializedObject(appearance);
+        appearanceSo.FindProperty("targetRenderer").objectReferenceValue = renderer;
+        appearanceSo.FindProperty("worldSize").floatValue = PlayerHeight;
+        appearanceSo.ApplyModifiedPropertiesWithoutUndo();
 
         WireSpellCaster(caster, circlePrefab, projectilePrefab);
         AddVoiceChat(root);

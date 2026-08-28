@@ -194,11 +194,20 @@ public class OnlineUI2D : MonoBehaviour
     // ปล่อยว่างไว้ก็ไม่ error แค่ส่วนนั้นจะไม่ทำงาน
 
     [Header("กลุ่มหน้าจอ")]
+    [SerializeField] private GameObject profilePanel;
     [SerializeField] private GameObject joinPanel;
     [SerializeField] private GameObject roomPanel;
     [SerializeField] private GameObject compactPanel;
 
+    [Header("หน้าตั้งชื่อและวาดตัวละคร")]
+    [SerializeField] private InputField nameInput;
+    [SerializeField] private MagicDrawing.ProfileDrawPad drawPad;
+    [SerializeField] private Button confirmProfileButton;
+    [SerializeField] private Button undoStrokeButton;
+    [SerializeField] private Button clearDrawingButton;
+
     [Header("หน้าเข้าห้อง")]
+    [SerializeField] private Button editProfileButton;
     [SerializeField] private InputField codeInput;
     [SerializeField] private Button hostButton;
     [SerializeField] private Button joinButton;
@@ -219,9 +228,23 @@ public class OnlineUI2D : MonoBehaviour
     [Header("อื่น ๆ")]
     [SerializeField] private Text statusText;
 
+    /// <summary>
+    /// ตั้งชื่อและวาดตัวละครเสร็จหรือยัง
+    /// ต้องเสร็จก่อนถึงจะเห็นหน้าสร้าง/เข้าห้อง ตามที่ออกแบบไว้ว่า
+    /// ข้อมูลตัวละครต้องพร้อมก่อนต่อเน็ต ไม่ใช่ส่งกลางเกม
+    /// </summary>
+    private bool profileConfirmed;
+
     private void Awake()
     {
         ApplyThaiFont();
+
+        if (nameInput != null) nameInput.text = MagicDrawing.PlayerProfile.Name;
+
+        if (confirmProfileButton != null) confirmProfileButton.onClick.AddListener(OnConfirmProfile);
+        if (editProfileButton != null) editProfileButton.onClick.AddListener(OnEditProfile);
+        if (undoStrokeButton != null) undoStrokeButton.onClick.AddListener(OnUndoStroke);
+        if (clearDrawingButton != null) clearDrawingButton.onClick.AddListener(OnClearDrawing);
 
         if (hostButton != null) hostButton.onClick.AddListener(OnHostClicked);
         if (joinButton != null) joinButton.onClick.AddListener(OnJoinClicked);
@@ -244,6 +267,52 @@ public class OnlineUI2D : MonoBehaviour
         if (compactLeaveButton != null) compactLeaveButton.onClick.RemoveListener(OnLeaveClicked);
 
         if (codeInput != null) codeInput.onValueChanged.RemoveListener(OnCodeChanged);
+
+        if (confirmProfileButton != null) confirmProfileButton.onClick.RemoveListener(OnConfirmProfile);
+        if (editProfileButton != null) editProfileButton.onClick.RemoveListener(OnEditProfile);
+        if (undoStrokeButton != null) undoStrokeButton.onClick.RemoveListener(OnUndoStroke);
+        if (clearDrawingButton != null) clearDrawingButton.onClick.RemoveListener(OnClearDrawing);
+    }
+
+    /// <summary>
+    /// ตรวจให้ครบทั้งชื่อและขนาดตัวละครก่อนปล่อยผ่าน
+    /// บอกทีละอย่างว่าขาดอะไร ไม่ใช่บอกรวม ๆ ว่า "ยังไม่ครบ"
+    /// </summary>
+    private void OnConfirmProfile()
+    {
+        string name = MagicDrawing.PlayerProfile.Sanitize(nameInput != null ? nameInput.text : "");
+
+        if (string.IsNullOrEmpty(name))
+        {
+            status = "ใส่ชื่อก่อน";
+            return;
+        }
+
+        if (drawPad != null && !drawPad.Save())
+        {
+            status = "วาดตัวละครให้ใหญ่กว่านี้ก่อน";
+            return;
+        }
+
+        MagicDrawing.PlayerProfile.Name = name;
+        profileConfirmed = true;
+        status = $"พร้อมแล้ว — {name}";
+    }
+
+    private void OnEditProfile()
+    {
+        profileConfirmed = false;
+        status = "";
+    }
+
+    private void OnUndoStroke()
+    {
+        if (drawPad != null) drawPad.UndoLastStroke();
+    }
+
+    private void OnClearDrawing()
+    {
+        if (drawPad != null) drawPad.ClearAll();
     }
 
     private void OnHostClicked() => _ = HostAsync();
@@ -315,9 +384,17 @@ public class OnlineUI2D : MonoBehaviour
         bool inGame = connected && IsInGameScene();
 
         // อยู่ในสนามรบแล้วย่อเหลือแถบเล็ก ไม่บังพื้นที่เล่น
+        bool inMenu = !connected;
+
         SetActive(compactPanel, inGame);
-        SetActive(joinPanel, !connected);
+        SetActive(profilePanel, inMenu && !profileConfirmed);
+        SetActive(joinPanel, inMenu && profileConfirmed);
         SetActive(roomPanel, connected && !inGame);
+
+        // ปุ่มยืนยันกดได้ก็ต่อเมื่อวาดผ่านเงื่อนไขขนาดแล้ว
+        // ปิดปุ่มไว้ชัดเจนกว่าปล่อยให้กดแล้วขึ้นข้อความเตือนทุกครั้ง
+        if (confirmProfileButton != null)
+            confirmProfileButton.interactable = drawPad == null || drawPad.IsValid;
 
         if (statusText != null) statusText.text = status;
 
