@@ -254,6 +254,12 @@ namespace MagicDrawing
             if (main != null)
                 caster.RequestCast(main, pendingSpell.Element, aimDirection);
 
+            if (logRecognition)
+            {
+                Debug.Log($"[SpellDrawing] ยิงเวท{pendingSpell.Element.ToThai()} "
+                          + $"ทิศ ({aimDirection.x:F2}, {aimDirection.y:F2})");
+            }
+
             statusMessage = $"ยิงเวท{pendingSpell.Element.ToThai()}!";
             ClearStrokes();
             ResetToIdle();
@@ -271,11 +277,37 @@ namespace MagicDrawing
         private void HandleCancel()
         {
             if (phase == CastPhase.Idle) return;
-            if (!WasCancelPressed()) return;
 
-            statusMessage = "ยกเลิกแล้ว";
-            ClearStrokes();
-            ResetToIdle();
+            if (WasCancelPressed())
+            {
+                statusMessage = "ยกเลิกแล้ว";
+                ClearStrokes();
+                ResetToIdle();
+                return;
+            }
+
+            // กดปุ่มเดินระหว่างร่าย = เปลี่ยนใจ ขอเดินแทน
+            //
+            // ข้อนี้สำคัญกว่าที่คิด ถ้าไม่มี ผู้เล่นที่เขียนคาถาแล้วไม่รู้ว่าต้องกด
+            // Space ยืนยัน จะติดอยู่ในสถานะที่เดินไม่ได้ถาวร แล้วดูเหมือนเกมค้าง
+            // ทั้งที่จริงแค่รอปุ่มอยู่ ยอมให้เสียคาถาที่เขียนไว้ดีกว่าขยับไม่ได้เลย
+            if (WasMoveKeyPressed())
+            {
+                statusMessage = "ยกเลิกคาถาเพื่อเดิน";
+                ClearStrokes();
+                ResetToIdle();
+            }
+        }
+
+        private bool WasMoveKeyPressed()
+        {
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null) return false;
+
+            return keyboard.aKey.wasPressedThisFrame
+                || keyboard.dKey.wasPressedThisFrame
+                || keyboard.leftArrowKey.wasPressedThisFrame
+                || keyboard.rightArrowKey.wasPressedThisFrame;
         }
 
         private void ResetToIdle()
@@ -514,6 +546,24 @@ namespace MagicDrawing
             GUILayout.Label(hint);
             if (!string.IsNullOrEmpty(statusMessage)) GUILayout.Label(statusMessage);
             GUILayout.EndArea();
+
+            // ระหว่างที่เดินไม่ได้ ต้องบอกให้ชัดว่าเกมรออะไรอยู่และออกยังไง
+            // แถบล่างอย่างเดียวมองข้ามได้ง่าย โดยเฉพาะตอน Game view เล็ก
+            if (phase == CastPhase.Idle) return;
+
+            string banner = phase == CastPhase.Aiming
+                ? $"เล็งด้วยเมาส์ แล้วกด Space หรือคลิกเพื่อยิงเวท{pendingSpell.Element.ToThai()}"
+                : "กด Space เพื่อยืนยันคาถา";
+
+            var bannerStyle = new GUIStyle(GUI.skin.box)
+            {
+                fontSize = 18,
+                alignment = TextAnchor.MiddleCenter,
+                wordWrap = true,
+            };
+
+            var bannerRect = new Rect(Screen.width * 0.5f - 260f, 90f, 520f, 64f);
+            GUI.Box(bannerRect, banner + "\n(กด A หรือ D เพื่อยกเลิกแล้วเดินต่อ)", bannerStyle);
         }
     }
 }
