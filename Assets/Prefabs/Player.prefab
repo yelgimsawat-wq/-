@@ -124,7 +124,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 1024968951
+  GlobalObjectIdHash: 3671897612
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -326,7 +326,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MagicDrawing.PlayerAppearance
   ShowTopMostFoldoutHeaderGroup: 1
   targetRenderer: {fileID: 6645466981750641304}
-  inkColor: {r: 1, g: 1, b: 1, a: 1}
   worldSize: 1.5
 --- !u!114 &6178049615193051891
 MonoBehaviour:

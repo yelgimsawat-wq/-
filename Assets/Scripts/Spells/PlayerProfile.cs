@@ -21,8 +21,31 @@ namespace MagicDrawing
     /// </summary>
     public static class PlayerProfile
     {
-        private const string NameKey = "MagicDrawing.PlayerName";
-        private const string AppearanceKey = "MagicDrawing.Appearance";
+        private static string NameKey => "MagicDrawing.PlayerName" + InstanceSuffix;
+        private static string AppearanceKey => "MagicDrawing.Appearance" + InstanceSuffix;
+
+        /// <summary>
+        /// ตัวแยกที่เก็บของผู้เล่นเสมือนแต่ละคนตอนทดสอบใน Editor
+        ///
+        /// PlayerPrefs เป็นที่เก็บร่วมกันทั้งเครื่อง (บน Windows คือรีจิสทรีชุดเดียว
+        /// ต่อชื่อบริษัทและชื่อเกม) ตอนทดสอบด้วย Multiplayer Play Mode ทุกหน้าต่าง
+        /// จึงอ่านเขียนที่เดียวกัน ผลคือวาดตัวละครคนละตัวแต่เข้าเกมแล้วหน้าตาเหมือนกันหมด
+        /// เพราะคนที่วาดทีหลังไปทับของคนแรก
+        ///
+        /// ผู้เล่นเสมือนรันจากโฟลเดอร์คนละที่ (Library/VP/mppm...) จึงใช้ที่อยู่นั้น
+        /// มาแยกกุญแจได้ ไม่ต้องพึ่งแพ็กเกจของ Multiplayer Play Mode
+        ///
+        /// ใช้เฉพาะใน Editor เท่านั้น เกมที่ build แล้วใช้กุญแจปกติ ไม่งั้นถ้าผู้เล่น
+        /// ย้ายโฟลเดอร์เกม ตัวละครที่เคยวาดไว้จะหายไปเฉย ๆ
+        /// </summary>
+        private static string InstanceSuffix
+        {
+#if UNITY_EDITOR
+            get { return "." + Application.dataPath.GetHashCode().ToString("X8"); }
+#else
+            get { return string.Empty; }
+#endif
+        }
 
         /// <summary>เพดานที่ต้องไม่เกิน ไม่งั้นส่งข้ามเน็ตแล้วทะลุขนาดข้อความ</summary>
         public const int MaxStrokes = 24;
