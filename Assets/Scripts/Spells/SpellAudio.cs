@@ -7,6 +7,7 @@ namespace MagicDrawing
     {
         Cast,          // ยิงเวทออกไป
         Shield,        // กางโล่
+        DrawLoop,      // เสียงต่อเนื่องระหว่างลากเส้น (วนลูป)
         StrokeStart,   // เริ่มลากขีดใหม่
         StrokeEnd,     // ปล่อยมือจบขีด
         Confirm,       // เขียนคาถาเสร็จ ระบบอ่านออกว่าเป็นธาตุอะไร
@@ -118,6 +119,9 @@ namespace MagicDrawing
                     return BuildTone($"Shield_{element}", 0.5f,
                         BaseFrequency(element) * 1.6f, BaseFrequency(element) * 0.9f, 0.15f);
 
+                case SpellSound.DrawLoop:
+                    return BuildDrawLoop();
+
                 case SpellSound.StrokeStart:
                     // สั้นและเบามาก เพราะดังทุกครั้งที่แตะเมาส์ ถ้าเด่นไปจะน่ารำคาญเร็ว
                     return BuildTone("StrokeStart", 0.05f, 900f, 1200f, 0.1f);
@@ -212,6 +216,49 @@ namespace MagicDrawing
             }
 
             return CreateClip(name, samples);
+        }
+
+        /// <summary>
+        /// เสียงต่อเนื่องระหว่างลากเส้น คล้ายเสียงดินสอขูดกระดาษผสมเสียงฮัมเบา ๆ
+        ///
+        /// ต่างจากเสียงอื่นตรงที่ไม่มีซองเสียง เพราะเสียงนี้ถูกเล่นวนลูป
+        /// ถ้าใส่ซองจะได้ยินเป็นจังหวะดัง-เบาซ้ำ ๆ ทุกครั้งที่วนกลับมาต้นคลิป
+        ///
+        /// ความยาวคลิปคำนวณให้พอดีกับจำนวนรอบเต็มของเสียงฮัม
+        /// รอยต่อตอนวนกลับจึงไม่มีเสียงป๊อก
+        /// </summary>
+        private static AudioClip BuildDrawLoop()
+        {
+            const float humFrequency = 110f;
+            const int cycles = 55;                 // 0.5 วินาทีพอดีที่ 110 Hz
+
+            int count = Mathf.RoundToInt(SampleRate * cycles / humFrequency);
+            var samples = new float[count];
+
+            float smoothed = 0f;
+
+            for (int i = 0; i < count; i++)
+            {
+                // เสียงฮัมคำนวณจากดัชนีโดยตรง ไม่ใช่การสะสมเฟส
+                // เพื่อให้ตัวอย่างสุดท้ายต่อกับตัวแรกได้พอดีเป๊ะ
+                float hum = Mathf.Sin(2f * Mathf.PI * humFrequency * i / SampleRate) * 0.25f;
+
+                smoothed = Mathf.Lerp(smoothed, Random.Range(-1f, 1f), 0.25f);
+
+                samples[i] = (hum + smoothed * 0.35f) * 0.35f;
+            }
+
+            return CreateClip("DrawLoop", samples);
+        }
+
+        /// <summary>
+        /// ขอคลิปไปเล่นเองผ่าน AudioSource ของผู้เรียก
+        /// ใช้กับเสียงที่ต้องวนลูปหรือคุมความดัง/ระดับเสียงระหว่างเล่น
+        /// ซึ่ง PlayClipAtPoint ทำไม่ได้เพราะมันเล่นแล้วปล่อยจนจบ
+        /// </summary>
+        public static AudioClip GetClip(SpellSound sound, SpellElement element = SpellElement.Wind)
+        {
+            return Resolve(sound, element);
         }
 
         /// <summary>
