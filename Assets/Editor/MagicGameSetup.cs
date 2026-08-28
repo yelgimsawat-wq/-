@@ -7,7 +7,6 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
-using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 
 /// <summary>
@@ -91,10 +90,9 @@ public static class MagicGameSetup
     /// </summary>
     private static void BuildGameScene(Sprite squareSprite)
     {
-        Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        Scene scene = NewSceneFromTemplate();
 
-        CreateCamera();
-        CreateGlobalLight();
+        ConfigureCamera();
         CreateGround(squareSprite);
         CreateEventSystem();
 
@@ -110,10 +108,9 @@ public static class MagicGameSetup
     /// </summary>
     private static void BuildLobbyScene(GameObject playerPrefab)
     {
-        Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        Scene scene = NewSceneFromTemplate();
 
-        CreateCamera();
-        CreateGlobalLight();
+        ConfigureCamera();
         CreateEventSystem();
 
         var go = new GameObject("NetworkManager");
@@ -459,35 +456,55 @@ public static class MagicGameSetup
         go.AddComponent<InputSystemUIInputModule>();
     }
 
-    private static void CreateCamera()
+    /// <summary>
+    /// เปิดซีนเปล่าที่มีกล้องและแสงรวมของ URP 2D มาให้แล้ว
+    ///
+    /// ใช้ template ที่ Unity สร้างไว้ตอนตั้งโปรเจกต์แทนการประกอบเอง
+    /// เพราะ Light2D อยู่ในแอสเซมบลีที่สคริปต์ฝั่ง Editor อ้างถึงตรง ๆ ไม่ได้
+    /// และถ้าฉากไม่มีแสงรวม sprite ที่ใช้วัสดุแบบรับแสงจะดำสนิททั้งฉาก
+    ///
+    /// SaveScene ไปที่ path ใหม่ทีหลัง ตัว template จึงไม่ถูกแก้
+    /// </summary>
+    private static Scene NewSceneFromTemplate()
     {
-        var go = new GameObject("Main Camera");
-        go.tag = "MainCamera";
+        const string templatePath = "Assets/Settings/Scenes/URP2DSceneTemplate.unity";
 
-        // กล้อง 2D ต้องถอยออกมาจากระนาบ z = 0 ไม่งั้นมองไม่เห็นอะไรเลย
-        go.transform.position = new Vector3(0f, 0f, -10f);
+        if (File.Exists(templatePath))
+            return EditorSceneManager.OpenScene(templatePath, OpenSceneMode.Single);
 
-        var camera = go.AddComponent<Camera>();
-        camera.orthographic = true;
-        camera.orthographicSize = 6f;
-        camera.clearFlags = CameraClearFlags.SolidColor;
-        camera.backgroundColor = new Color(0.07f, 0.08f, 0.12f);
+        Debug.LogWarning(
+            $"[MagicGameSetup] ไม่พบ {templatePath} จึงสร้างซีนเปล่าแทน\n"
+            + "ฉากจะไม่มีแสงรวม 2D ถ้าจอมืดให้เพิ่ม Light 2D แบบ Global เองด้วย");
 
-        // กล้องเป็นฝ่ายตามหาตัวละคร ไม่ใช่ตัวละครลากกล้องมาผูก
-        // เพราะการโหลดซีนใหม่จะทำลายกล้องเก่าแต่ตัวละครย้ายข้ามซีนไปด้วย
-        go.AddComponent<CameraFollow2D>();
+        return EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
     }
 
     /// <summary>
-    /// แสงรวมของฉาก จำเป็นสำหรับ URP 2D
-    /// ถ้าไม่มี sprite ที่ใช้วัสดุแบบรับแสงจะกลายเป็นสีดำสนิททั้งฉาก
+    /// ตั้งค่ากล้องที่ติดมากับ template และให้มันตามตัวละครเอง
+    /// ไม่สร้างกล้องใหม่ เพราะกล้องของ template ตั้งค่าให้เข้ากับ URP 2D มาแล้ว
     /// </summary>
-    private static void CreateGlobalLight()
+    private static void ConfigureCamera()
     {
-        var go = new GameObject("Global Light 2D");
-        var light = go.AddComponent<Light2D>();
-        light.lightType = Light2D.LightType.Global;
-        light.intensity = 1f;
+        Camera camera = Camera.main;
+
+        if (camera == null)
+        {
+            var go = new GameObject("Main Camera") { tag = "MainCamera" };
+            camera = go.AddComponent<Camera>();
+        }
+
+        camera.orthographic = true;
+        camera.orthographicSize = 6f;
+
+        // กล้อง 2D ต้องถอยออกมาจากระนาบ z = 0 ไม่งั้นมองไม่เห็นอะไรเลย
+        Vector3 position = camera.transform.position;
+        if (position.z >= -1f)
+            camera.transform.position = new Vector3(position.x, position.y, -10f);
+
+        // กล้องเป็นฝ่ายตามหาตัวละคร ไม่ใช่ตัวละครลากกล้องมาผูก
+        // เพราะการโหลดซีนใหม่จะทำลายกล้องเก่าแต่ตัวละครย้ายข้ามซีนไปด้วย
+        if (camera.GetComponent<CameraFollow2D>() == null)
+            camera.gameObject.AddComponent<CameraFollow2D>();
     }
 
     private static void EnsureFolder(string path)
