@@ -25,6 +25,8 @@ public static class EnsureMetaVoiceChatDefine
     {
         bool shouldBeOn = Directory.Exists(PackageFolder);
 
+        EnsureUnsafeCodeAllowed(shouldBeOn);
+
         // ตั้งให้ครบทุกแพลตฟอร์มที่โปรเจกต์นี้จะ build จริง
         // ถ้าตั้งแค่ Standalone แล้ววันหนึ่งไป build Android เสียงจะหายเฉย ๆ
         foreach (NamedBuildTarget target in new[]
@@ -37,6 +39,24 @@ public static class EnsureMetaVoiceChatDefine
         {
             Apply(target, shouldBeOn);
         }
+    }
+
+    /// <summary>
+    /// เปิด "Allow unsafe code" ให้ เพราะตัวเชื่อม NGO ของ MetaVoiceChat
+    /// ใช้พอยน์เตอร์ในการคัดลอกบัฟเฟอร์เสียงเพื่อความเร็ว
+    /// ถ้าไม่เปิด จะคอมไพล์ไม่ผ่านทั้งโปรเจกต์ด้วย error CS0227
+    ///
+    /// ไม่ปิดกลับอัตโนมัติตอนลบแพ็กเกจ เพราะโค้ดส่วนอื่นของผู้ใช้อาจพึ่งพาไปแล้ว
+    /// การปิดให้เองจะทำให้โปรเจกต์พังโดยไม่รู้ตัวว่าใครปิด
+    /// </summary>
+    private static void EnsureUnsafeCodeAllowed(bool required)
+    {
+        if (!required || PlayerSettings.allowUnsafeCode) return;
+
+        PlayerSettings.allowUnsafeCode = true;
+        Debug.Log(
+            "[MetaVoiceChat] เปิด Allow unsafe code ให้แล้ว "
+            + "เพราะตัวเชื่อม Netcode ของแพ็กเกจใช้พอยน์เตอร์คัดลอกบัฟเฟอร์เสียง");
     }
 
     private static void Apply(NamedBuildTarget target, bool shouldBeOn)

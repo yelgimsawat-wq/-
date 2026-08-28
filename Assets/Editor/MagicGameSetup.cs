@@ -41,7 +41,8 @@ public static class MagicGameSetup
     private const string PlayerPrefabPath = PrefabFolder + "/Player.prefab";
 
     private const string SceneFolder = "Assets/Scenes";
-    private const string LobbyScenePath = SceneFolder + "/Lobby.unity";
+    // ใช้ชื่อ Menu ตามที่ผู้ใช้ตั้งไว้เอง จะได้ไม่มีซีนซ้ำซ้อนสองชุด
+    private const string LobbyScenePath = SceneFolder + "/Menu.unity";
     private const string GameScenePath = SceneFolder + "/Game.unity";
 
     private const int CircleTextureSize = 256;
@@ -72,7 +73,7 @@ public static class MagicGameSetup
 
         Debug.Log(
             "[MagicGameSetup] ติดตั้งเสร็จแล้ว — แยกเป็น 2 ซีนแล้ว\n"
-            + $"  {LobbyScenePath}  ห้องรอ (กด Play จากซีนนี้)\n"
+            + $"  {LobbyScenePath}  ห้องรอ - กด Play จากซีนนี้\n"
             + $"  {GameScenePath}  สนามรบ\n\n"
             + "Host กด 'สร้างห้อง' -> รอเพื่อนเข้า -> กด 'เริ่มเกม' ทุกคนจะถูกพาไปสนามรบพร้อมกัน\n"
             + "A/D = เดิน | ลากเมาส์ = เขียนคาถา | Space = ยืนยัน | เล็ง | Space = ยิง | Esc = ยกเลิก\n"
