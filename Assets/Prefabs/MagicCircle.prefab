@@ -106,7 +106,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MagicDrawing.MagicCircle
   renderers: []
   tintByElement: 1
-  useAdditiveBlending: 1
   sortingLayerName: 
   sortingOrder: 500
   fadeInTime: 0.12

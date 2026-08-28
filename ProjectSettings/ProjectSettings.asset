@@ -675,7 +675,11 @@ PlayerSettings:
   webGLCloseOnQuit: 0
   webWasm2023: 0
   webEnableSubmoduleStrippingCompatibility: 0
-  scriptingDefineSymbols: {}
+  scriptingDefineSymbols:
+    Android: METAVC_NGO
+    Standalone: METAVC_NGO
+    WebGL: METAVC_NGO
+    iPhone: METAVC_NGO
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:

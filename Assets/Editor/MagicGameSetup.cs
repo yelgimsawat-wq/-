@@ -36,6 +36,11 @@ public static class MagicGameSetup
     private const string CircleTexturePath = ArtFolder + "/MagicCircle.png";
     private const string SquareTexturePath = ArtFolder + "/WhiteSquare.png";
     private const string OrbTexturePath = ArtFolder + "/SpellOrb.png";
+    private const string CapsuleTexturePath = ArtFolder + "/PlayerCapsule.png";
+
+    // ขนาดตัวละครเป็นหน่วยโลก ใช้ร่วมกันทั้งภาพและ collider จะได้ตรงกันเป๊ะ
+    private const float PlayerWidth = 1f;
+    private const float PlayerHeight = 1.5f;
     private const string ProjectilePrefabPath = PrefabFolder + "/SpellProjectile.prefab";
     private const string CirclePrefabPath = PrefabFolder + "/MagicCircle.prefab";
     private const string PlayerPrefabPath = PrefabFolder + "/Player.prefab";
@@ -58,10 +63,11 @@ public static class MagicGameSetup
         Sprite circleSprite = CreateMagicCircleSprite();
         Sprite squareSprite = CreateSquareSprite();
         Sprite orbSprite = CreateOrbSprite();
+        Sprite capsuleSprite = CreateCapsuleSprite();
 
         MagicCircle circlePrefab = CreateMagicCirclePrefab(circleSprite);
         SpellProjectile projectilePrefab = CreateProjectilePrefab(orbSprite);
-        GameObject playerPrefab = CreatePlayerPrefab(circlePrefab, projectilePrefab);
+        GameObject playerPrefab = CreatePlayerPrefab(circlePrefab, projectilePrefab, capsuleSprite);
 
         // สร้างซีนเกมก่อน แล้วค่อยซีนห้องรอ เพื่อให้จบด้วยการเปิดซีนห้องรอค้างไว้
         // ซึ่งเป็นซีนที่ผู้เล่นต้องกด Play จากตรงนั้น
@@ -278,6 +284,66 @@ public static class MagicGameSetup
     }
 
     /// <summary>
+    /// แคปซูลตั้งสำหรับเป็นตัวละคร
+    ///
+    /// วาดจากระยะถึง "แกนกลาง" ของแคปซูล ซึ่งเป็นเส้นตรงแนวตั้งที่หดหัวท้าย
+    /// เข้ามาข้างละรัศมี จุดไหนอยู่ห่างจากแกนไม่เกินรัศมีก็คือเนื้อของแคปซูล
+    /// วิธีนี้ได้ปลายมนทั้งบนล่างโดยไม่ต้องวาดวงกลมสองวงมาต่อกับสี่เหลี่ยม
+    ///
+    /// ตั้ง Pixels Per Unit ให้ตรงกับความกว้างจริง ภาพกับ CapsuleCollider2D
+    /// จึงมีขนาดเท่ากันพอดี ไม่ต้องมานั่งจูนทีหลัง
+    /// </summary>
+    private static Sprite CreateCapsuleSprite()
+    {
+        const int width = 128;
+        int height = Mathf.RoundToInt(width * (PlayerHeight / PlayerWidth));
+
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        var pixels = new Color32[width * height];
+
+        float radius = width * 0.5f;
+        float centerX = radius;
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                // จุดบนแกนกลางที่ใกล้พิกเซลนี้ที่สุด
+                float axisY = Mathf.Clamp(y, radius, height - radius);
+                float dx = x - centerX;
+                float dy = y - axisY;
+                float distance = Mathf.Sqrt(dx * dx + dy * dy);
+
+                // ไล่ขอบ 1.5 พิกเซล ให้ขอบเนียนไม่เป็นบันได
+                float alpha = Mathf.Clamp01((radius - distance) / 1.5f);
+
+                // ไล่เฉดจากบนลงล่างนิดหน่อย ให้ดูมีมิติไม่แบนสนิท
+                float shade = Mathf.Lerp(1f, 0.72f, 1f - (float)y / height);
+
+                pixels[y * width + x] = new Color(shade, shade, shade, alpha);
+            }
+        }
+
+        texture.SetPixels32(pixels);
+        texture.Apply();
+
+        File.WriteAllBytes(CapsuleTexturePath, texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+
+        AssetDatabase.ImportAsset(CapsuleTexturePath, ImportAssetOptions.ForceUpdate);
+
+        var importer = (TextureImporter)AssetImporter.GetAtPath(CapsuleTexturePath);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.alphaIsTransparency = true;
+        importer.mipmapEnabled = false;
+        importer.spritePixelsPerUnit = width / PlayerWidth;
+        importer.SaveAndReimport();
+
+        return AssetDatabase.LoadAssetAtPath<Sprite>(CapsuleTexturePath);
+    }
+
+    /// <summary>
     /// สี่เหลี่ยมขาวล้วนสำหรับทำพื้น
     /// ตั้ง Pixels Per Unit เท่ากับขนาดภาพพอดี sprite จึงกว้าง 1 หน่วยเป๊ะ
     /// ทำให้ BoxCollider2D ที่วัดขนาดจากภาพตรงกับที่ตาเห็นเสมอแม้จะสเกลทีหลัง
@@ -380,13 +446,15 @@ public static class MagicGameSetup
         return saved.GetComponent<MagicCircle>();
     }
 
-    private static GameObject CreatePlayerPrefab(MagicCircle circlePrefab, SpellProjectile projectilePrefab)
+    private static GameObject CreatePlayerPrefab(
+        MagicCircle circlePrefab,
+        SpellProjectile projectilePrefab,
+        Sprite capsuleSprite)
     {
         var root = new GameObject("Player");
 
-        // ใช้ภาพวงกลมที่ติดมากับ Unity เป็นตัวละครชั่วคราว
         var renderer = root.AddComponent<SpriteRenderer>();
-        renderer.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd");
+        renderer.sprite = capsuleSprite;
         renderer.color = Color.white;
         renderer.sortingOrder = 10;
 
@@ -394,11 +462,14 @@ public static class MagicGameSetup
         body.freezeRotation = true;
         // ค่าพวกนี้ NetworkPlayer2D ตั้งทับให้เองตอนเกิดอยู่แล้ว ใส่ไว้ให้ตรงกัน
         // เพื่อไม่ให้คนที่เปิดดู Inspector สับสนว่าทำไมค่าไม่ตรงกับตอนเล่น
-        body.gravityScale = 0f;
+        body.gravityScale = 3f;
         body.linearDamping = 0f;
 
-        var collider = root.AddComponent<CircleCollider2D>();
-        collider.radius = 0.5f;
+        // ขนาดตรงกับภาพเป๊ะ เพราะทั้งคู่คำนวณจาก PlayerWidth/PlayerHeight ชุดเดียวกัน
+        // แคปซูลเหมาะกับตัวละครแนวข้างมากกว่าวงกลม เพราะไม่กลิ้งและไม่ติดขอบพื้น
+        var collider = root.AddComponent<CapsuleCollider2D>();
+        collider.direction = CapsuleDirection2D.Vertical;
+        collider.size = new Vector2(PlayerWidth, PlayerHeight);
 
         root.AddComponent<NetworkObject>();
         root.AddComponent<ClientNetworkTransform2D>();
