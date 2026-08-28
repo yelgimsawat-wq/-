@@ -497,6 +497,7 @@ public static class MagicGameSetup
         root.AddComponent<SpellPower>();
 
         WireSpellCaster(caster, circlePrefab, projectilePrefab);
+        AddVoiceChat(root);
 
         GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, PlayerPrefabPath);
         Object.DestroyImmediate(root);
@@ -509,6 +510,44 @@ public static class MagicGameSetup
     /// เข้าถึงตรง ๆ ไม่ได้เพราะเป็น [SerializeField] private ซึ่งถูกต้องแล้ว
     /// (ไม่ควรเปิดเป็น public แค่เพื่อให้สคริปต์ติดตั้งเขียนได้)
     /// </summary>
+    /// <summary>
+    /// ประกอบระบบเสียงพูดลงบนตัวละคร
+    ///
+    /// ทั้งบล็อกถูกครอบด้วย #if METAVC_NGO ถ้าลบแพ็กเกจ MetaVoiceChat ออก
+    /// สคริปต์ติดตั้งจะยังคอมไพล์ผ่านและทำงานได้ตามปกติ แค่ไม่มีเสียงพูด
+    ///
+    /// ต้องอยู่บนตัวละครไม่ใช่ในฉาก เพราะเสียงต้องผูกกับเจ้าของแต่ละคน
+    /// NGONetProvider เป็น NetworkBehaviour ที่ใช้ IsOwner แยกว่าใครพูดใครฟัง
+    /// </summary>
+    private static void AddVoiceChat(GameObject root)
+    {
+#if METAVC_NGO
+        var metaVc = root.AddComponent<MetaVoiceChat.MetaVc>();
+        var micInput = root.AddComponent<MetaVoiceChat.Input.Mic.VcMicAudioInput>();
+
+        var voiceSource = root.AddComponent<AudioSource>();
+        voiceSource.playOnAwake = false;
+        // เสียงพูดดังจากตำแหน่งตัวละคร ใครอยู่ไกลก็ได้ยินเบาลง
+        voiceSource.spatialBlend = 1f;
+        voiceSource.rolloffMode = AudioRolloffMode.Linear;
+        voiceSource.maxDistance = 30f;
+
+        var output = root.AddComponent<MetaVoiceChat.Output.AudioSource.VcAudioSourceOutput>();
+        output.audioSource = voiceSource;
+
+        // ผูกอ้างอิงไปกลับให้ครบ ทั้งสองฝั่งต้องรู้จักกันไม่งั้นเสียงไม่เดิน
+        metaVc.audioInput = micInput;
+        metaVc.audioOutput = output;
+        micInput.metaVc = metaVc;
+        output.metaVc = metaVc;
+
+        root.AddComponent<MetaVoiceChat.NetProviders.NGO.NGONetProvider>();
+
+        // ตัวเชื่อมของเรา ต้องมาหลัง MetaVc เพราะมันไปอ่าน component นั้น
+        root.AddComponent<MagicDrawing.VoiceChatPowerBridge>();
+#endif
+    }
+
     private static void WireSpellCaster(
         SpellCaster caster,
         MagicCircle circlePrefab,

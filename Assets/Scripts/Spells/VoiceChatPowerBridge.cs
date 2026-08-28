@@ -1,4 +1,5 @@
 #if METAVC_NGO
+using MetaVoiceChat;
 using MetaVoiceChat.Input;
 using UnityEngine;
 
@@ -24,11 +25,18 @@ namespace MagicDrawing
         [Tooltip("ตัวรับเสียงของ voice chat ปล่อยว่าง = ค้นหาในฉากให้เอง")]
         [SerializeField] private VcAudioInput audioInput;
 
+        [Tooltip("เปิดไมค์เฉพาะตอนกำลังร่ายเวท ปิดตัวเลือกนี้ = พูดได้ตลอดเวลา")]
+        [SerializeField] private bool onlyTransmitWhileCasting = true;
+
         private SpellPower power;
+        private SpellDrawing drawing;
+        private MetaVc metaVc;
 
         private void Awake()
         {
             power = GetComponent<SpellPower>();
+            drawing = GetComponent<SpellDrawing>();
+            metaVc = GetComponent<MetaVc>();
 
             // ต้องจองสิทธิ์ตั้งแต่ Awake เพราะ Start ของ SpellPower จะไปเปิดไมค์
             // ถ้าบอกช้ากว่านั้นจะกลายเป็นเปิดไมค์ซ้อนกันสองระบบแล้วพังทั้งคู่
@@ -62,6 +70,27 @@ namespace MagicDrawing
         private void HandleFrameReady(int index, float[] samples)
         {
             power.FeedExternalSamples(samples);
+        }
+
+        /// <summary>
+        /// เปิดไมค์เฉพาะตอนกำลังร่ายเวท
+        ///
+        /// ทำให้เพื่อนได้ยินเสียงเราตอนร่ายเวทพอดี ซึ่งเป็นจังหวะที่ต้องการ
+        /// และแก้ปัญหาที่ตามมาเองด้วย: ถ้าเปิดไมค์ตลอดเวลา เสียงหายใจ
+        /// เสียงพัดลม เสียงคีย์บอร์ด จะดังกวนกันทั้งเกม
+        ///
+        /// ปิดตัวเลือกนี้ใน Inspector ถ้าอยากให้คุยกันได้ตลอด
+        /// </summary>
+        private void Update()
+        {
+            if (!onlyTransmitWhileCasting) return;
+            if (metaVc == null || drawing == null) return;
+
+            bool shouldTransmit = drawing.IsCasting;
+
+            // เขียนทับทุกเฟรมไม่ได้ ค่านี้เป็น reactive property ที่ยิง event ทุกครั้งที่ตั้ง
+            if (metaVc.isInputMuted.Value == shouldTransmit)
+                metaVc.isInputMuted.Value = !shouldTransmit;
         }
     }
 }

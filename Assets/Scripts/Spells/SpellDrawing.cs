@@ -99,6 +99,12 @@ namespace MagicDrawing
         private AudioSource drawLoopSource;
         private Vector2 lastSparkPosition;
 
+        /// <summary>
+        /// กำลังเขียนคาถาหรือเล็งอยู่หรือเปล่า
+        /// ระบบเสียงพูดใช้ค่านี้ตัดสินว่าจะเปิดไมค์ส่งให้เพื่อนฟังตอนไหน
+        /// </summary>
+        public bool IsCasting => phase != CastPhase.Idle;
+
         private SpellCastResult pendingSpell;
         private Vector2 aimDirection = Vector2.right;
         private string statusMessage = "";
