@@ -113,6 +113,8 @@ namespace MagicDrawing
             if (shield != null) Destroy(shield.gameObject);
 
             SpellAudio.Play(SpellSound.ShieldBreak, transform.position);
+            // กระจายแรงและกว้างกว่าปกติ ให้รู้สึกว่าโล่แตกจริง ๆ ไม่ใช่แค่โดน
+            SpellVfx.Burst(SpellElement.Wind, transform.position, 20, 7f, 0.7f, 0.5f);
         }
 
         /// <summary>
@@ -128,10 +130,16 @@ namespace MagicDrawing
         [ClientRpc]
         private void PlayHitSoundClientRpc(byte elementId, bool blocked)
         {
+            SpellElement element = SpellElementExtensions.FromNetworkId(elementId);
+
             SpellAudio.Play(
                 blocked ? SpellSound.Blocked : SpellSound.Hit,
                 transform.position,
-                SpellElementExtensions.FromNetworkId(elementId));
+                element);
+
+            // โดนเต็ม ๆ กระจายแรงกว่าตอนที่โล่กันไว้ได้ ดูออกจากเอฟเฟกต์เลย
+            SpellVfx.Burst(element, transform.position,
+                blocked ? 5 : 12, blocked ? 2f : 5.5f, 0.45f, blocked ? 0.3f : 0.5f);
         }
 
         private IEnumerator HandleDeath()

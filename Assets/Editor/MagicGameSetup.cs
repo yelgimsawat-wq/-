@@ -149,8 +149,10 @@ public static class MagicGameSetup
         var ui = go.AddComponent<OnlineUI2D>();
 
         // ไว้บนตัวเดียวกับ NetworkManager เพราะมันตามข้ามซีนไปด้วย
-        // เสียงจึงตั้งค่าครั้งเดียวใช้ได้ทั้งห้องรอและสนามรบ
-        go.AddComponent<SpellAudioLibrary>();
+        // เสียงและเอฟเฟกต์จึงตั้งค่าครั้งเดียวใช้ได้ทั้งห้องรอและสนามรบ
+        var audioLibrary = go.AddComponent<SpellAudioLibrary>();
+        var vfxLibrary = go.AddComponent<SpellVfxLibrary>();
+        WireAssetLibraries(audioLibrary, vfxLibrary);
 
         BuildMenuCanvas(ui, go.transform);
 
@@ -178,6 +180,112 @@ public static class MagicGameSetup
         }
 
         EditorBuildSettings.scenes = scenes.ToArray();
+    }
+
+    // ---------- ผูกไฟล์เสียงและเอฟเฟกต์ ----------
+
+    private const string KenneyAudioFolder = "Assets/Art/Kenney/Audio";
+    private const string KenneyParticleFolder = "Assets/Art/Kenney/Particles";
+
+    /// <summary>
+    /// ผูกไฟล์เสียงและภาพอนุภาคจาก Kenney (CC0) เข้ากับระบบ
+    ///
+    /// ไฟล์ไหนหายไปก็ข้ามไปเงียบ ๆ ระบบจะใช้เสียงสังเคราะห์แทนตัวนั้น
+    /// จึงลบไฟล์ทิ้งได้โดยเกมไม่พัง แค่เสียงเปลี่ยนไป
+    ///
+    /// DrawLoop ไม่อยู่ในรายการโดยตั้งใจ เพราะต้องเป็นคลิปที่วนลูปได้ไร้รอยต่อ
+    /// ซึ่งไฟล์สำเร็จรูปทั่วไปทำไม่ได้ ใช้เสียงที่สังเคราะห์เองต่อไป
+    /// </summary>
+    private static void WireAssetLibraries(SpellAudioLibrary audio, SpellVfxLibrary vfx)
+    {
+        var soundFiles = new (SpellSound sound, string file)[]
+        {
+            (SpellSound.Cast,        "spell_cast"),
+            (SpellSound.Shield,      "spell_shield"),
+            (SpellSound.StrokeStart, "stroke_start"),
+            (SpellSound.StrokeEnd,   "stroke_end"),
+            (SpellSound.Confirm,     "spell_confirm"),
+            (SpellSound.Reject,      "spell_reject"),
+            (SpellSound.Manifest,    "spell_manifest"),
+            (SpellSound.Hit,         "hit"),
+            (SpellSound.Blocked,     "hit_blocked"),
+            (SpellSound.ShieldBreak, "shield_break"),
+            (SpellSound.Jump,        "player_jump"),
+            (SpellSound.Death,       "player_death"),
+        };
+
+        var audioSo = new SerializedObject(audio);
+        SerializedProperty clips = audioSo.FindProperty("clips");
+        clips.arraySize = 0;
+
+        foreach ((SpellSound sound, string file) in soundFiles)
+        {
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>($"{KenneyAudioFolder}/{file}.ogg");
+            if (clip == null) continue;
+
+            int index = clips.arraySize;
+            clips.arraySize = index + 1;
+
+            SerializedProperty entry = clips.GetArrayElementAtIndex(index);
+            entry.FindPropertyRelative("sound").enumValueIndex = (int)sound;
+            entry.FindPropertyRelative("clip").objectReferenceValue = clip;
+        }
+
+        audioSo.ApplyModifiedPropertiesWithoutUndo();
+
+        // ภาพอนุภาคเลือกให้เข้ากับธาตุ ไฟสำหรับไฟ ฝุ่นสำหรับดิน เป็นต้น
+        var particleFiles = new (SpellElement element, string file)[]
+        {
+            (SpellElement.Water, "magic_04"),
+            (SpellElement.Fire,  "flame_04"),
+            (SpellElement.Earth, "dirt_02"),
+            (SpellElement.Wind,  "slash_02"),
+        };
+
+        var vfxSo = new SerializedObject(vfx);
+        SerializedProperty sprites = vfxSo.FindProperty("sprites");
+        sprites.arraySize = 0;
+
+        foreach ((SpellElement element, string file) in particleFiles)
+        {
+            Sprite sprite = LoadParticleSprite(file);
+            if (sprite == null) continue;
+
+            int index = sprites.arraySize;
+            sprites.arraySize = index + 1;
+
+            SerializedProperty entry = sprites.GetArrayElementAtIndex(index);
+            entry.FindPropertyRelative("element").enumValueIndex = (int)element;
+            entry.FindPropertyRelative("sprite").objectReferenceValue = sprite;
+        }
+
+        vfxSo.FindProperty("genericSprite").objectReferenceValue = LoadParticleSprite("spark_04");
+        vfxSo.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>
+    /// โหลดภาพอนุภาคพร้อมบังคับให้ import เป็น Sprite
+    ///
+    /// ไฟล์ที่เพิ่งก๊อปเข้ามาอาจถูก import เป็น Texture ธรรมดา ซึ่งเอาไปใส่
+    /// SpriteRenderer ไม่ได้ ต้องสั่งเปลี่ยนก่อนแล้ว reimport
+    /// </summary>
+    private static Sprite LoadParticleSprite(string file)
+    {
+        string path = $"{KenneyParticleFolder}/{file}.png";
+        if (!File.Exists(path)) return null;
+
+        var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+        if (importer != null && importer.textureType != TextureImporterType.Sprite)
+        {
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.alphaIsTransparency = true;
+            // 512 ต่อหน่วย ภาพขนาด 512px จึงกว้าง 1 หน่วย พอดีกับสเกลที่โค้ดใช้
+            importer.spritePixelsPerUnit = 512f;
+            importer.SaveAndReimport();
+        }
+
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
     }
 
     // ---------- หน้าเมนู (Canvas) ----------

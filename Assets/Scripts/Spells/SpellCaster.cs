@@ -184,6 +184,7 @@ namespace MagicDrawing
                 MagicCircle circle = Instantiate(circlePrefab, origin, rotation);
                 circle.Play(element);
                 SpellAudio.Play(SpellSound.Manifest, origin, element);
+                SpellVfx.Burst(element, origin, 6, 2f, 0.7f, 0.4f);
             }
 
             SpellProjectile projectilePrefab = visual != null && visual.projectilePrefab != null
@@ -206,6 +207,9 @@ namespace MagicDrawing
             projectile.Launch(aim, element, IsServer, damage, transform);
 
             SpellAudio.Play(SpellSound.Cast, origin, element);
+
+            // พุ่งไปทางเดียวกับที่ยิง ไม่กระจายรอบทิศ จะได้อ่านทิศทางได้จากเอฟเฟกต์
+            SpellVfx.Burst(element, origin, 10, 5f, 0.45f, 0.5f, aim, 0.35f);
         }
 
         /// <summary>
@@ -262,6 +266,7 @@ namespace MagicDrawing
             shield.Play(element);
 
             SpellAudio.Play(SpellSound.Shield, transform.position, element);
+            SpellVfx.Burst(element, transform.position, 14, 3.5f, 0.6f, 0.45f);
         }
 
         // ---------- เส้นที่อีกฝ่ายกำลังวาด ----------
