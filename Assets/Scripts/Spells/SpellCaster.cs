@@ -183,6 +183,7 @@ namespace MagicDrawing
             {
                 MagicCircle circle = Instantiate(circlePrefab, origin, rotation);
                 circle.Play(element);
+                SpellAudio.Play(SpellSound.Manifest, origin, element);
             }
 
             SpellProjectile projectilePrefab = visual != null && visual.projectilePrefab != null

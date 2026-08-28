@@ -7,6 +7,11 @@ namespace MagicDrawing
     {
         Cast,          // ยิงเวทออกไป
         Shield,        // กางโล่
+        StrokeStart,   // เริ่มลากขีดใหม่
+        StrokeEnd,     // ปล่อยมือจบขีด
+        Confirm,       // เขียนคาถาเสร็จ ระบบอ่านออกว่าเป็นธาตุอะไร
+        Reject,        // เขียนแล้วอ่านไม่ออก ร่ายไม่ติด
+        Manifest,      // วงเวทปรากฏ
         Hit,           // โดนเวทเต็ม ๆ
         Blocked,       // โล่กันไว้ได้
         ShieldBreak,   // โล่แตกเพราะโดนธาตุที่แก้ได้
@@ -72,7 +77,11 @@ namespace MagicDrawing
                 return custom;
 
             // ธาตุมีผลกับโทนเฉพาะเสียงที่เกี่ยวกับเวท เสียงกระโดดไม่ต้องแยกธาตุ
-            bool elementMatters = sound == SpellSound.Cast || sound == SpellSound.Shield;
+            bool elementMatters =
+                sound == SpellSound.Cast
+                || sound == SpellSound.Shield
+                || sound == SpellSound.Confirm
+                || sound == SpellSound.Manifest;
             int key = (int)sound * 100 + (elementMatters ? (int)element : 0);
 
             if (cache.TryGetValue(key, out AudioClip cached) && cached != null)
@@ -108,6 +117,27 @@ namespace MagicDrawing
                     // กวาดลงและยาวกว่า ให้ความรู้สึกหนักแน่นแบบตั้งรับ
                     return BuildTone($"Shield_{element}", 0.5f,
                         BaseFrequency(element) * 1.6f, BaseFrequency(element) * 0.9f, 0.15f);
+
+                case SpellSound.StrokeStart:
+                    // สั้นและเบามาก เพราะดังทุกครั้งที่แตะเมาส์ ถ้าเด่นไปจะน่ารำคาญเร็ว
+                    return BuildTone("StrokeStart", 0.05f, 900f, 1200f, 0.1f);
+
+                case SpellSound.StrokeEnd:
+                    return BuildTone("StrokeEnd", 0.07f, 1200f, 800f, 0.1f);
+
+                case SpellSound.Confirm:
+                    // กวาดขึ้นสองเท่าตัว ให้ความรู้สึกว่าคาถาติดแล้ว พลังกำลังรวมตัว
+                    return BuildTone($"Confirm_{element}", 0.35f,
+                        BaseFrequency(element), BaseFrequency(element) * 3f, 0.12f);
+
+                case SpellSound.Reject:
+                    // กวาดลงต่ำ ฟังแล้วรู้ทันทีว่าไม่ผ่าน ไม่ต้องอ่านข้อความ
+                    return BuildTone("Reject", 0.25f, 300f, 120f, 0.25f);
+
+                case SpellSound.Manifest:
+                    // ยาวและนุ่ม เป็นเสียงพื้นหลังตอนวงเวทค่อย ๆ ปรากฏ
+                    return BuildTone($"Manifest_{element}", 0.6f,
+                        BaseFrequency(element) * 0.75f, BaseFrequency(element) * 1.5f, 0.08f);
 
                 case SpellSound.Hit:
                     return BuildNoise("Hit", 0.22f, 0.6f, 220f);

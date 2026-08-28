@@ -93,6 +93,9 @@ namespace MagicDrawing
         private LineRenderer aimLine;
         private bool isPressing;
 
+        private SpriteRenderer drawSpark;
+        private static Sprite sparkSprite;
+
         private SpellCastResult pendingSpell;
         private Vector2 aimDirection = Vector2.right;
         private string statusMessage = "";
@@ -173,6 +176,8 @@ namespace MagicDrawing
             activeLine = CreateLine(Color.white, strokeWidth);
             strokeLines.Add(activeLine);
             RedrawActiveLine();
+
+            SpellAudio.Play(SpellSound.StrokeStart, transform.position);
         }
 
         private void AppendPoint(Vector2 screen)
@@ -201,6 +206,7 @@ namespace MagicDrawing
         private void EndStroke()
         {
             isPressing = false;
+            HideSpark();
 
             Vector2[] stroke = currentStroke.ToArray();
             currentStroke.Clear();
@@ -222,6 +228,8 @@ namespace MagicDrawing
             strokes.Add(stroke);
             activeLine = null;
             statusMessage = $"เขียนแล้ว {strokes.Count} ขีด — กด Space ยืนยัน";
+
+            SpellAudio.Play(SpellSound.StrokeEnd, transform.position);
         }
 
         /// <summary>จังหวะยืนยันที่ 1: ปิดคาถาแล้วตัดสินว่าได้ธาตุอะไร</summary>
@@ -240,10 +248,13 @@ namespace MagicDrawing
             if (!result.Success)
             {
                 statusMessage = "ร่ายไม่ติด: " + result.FailReason;
+                SpellAudio.Play(SpellSound.Reject, transform.position);
                 ClearStrokes();
-                phase = CastPhase.Idle;
+                ResetToIdle();
                 return;
             }
+
+            SpellAudio.Play(SpellSound.Confirm, transform.position, result.Element);
 
             // วาดทับตัวเอง = ขอโล่ ไม่ใช่ขอยิง
             // ข้ามขั้นเล็งไปเลยเพราะโล่ไม่มีทิศ ตำแหน่งที่วาดคือคำสั่งอยู่แล้ว
@@ -391,6 +402,7 @@ namespace MagicDrawing
             currentStroke.Clear();
             activeLine = null;
             HideAimArrow();
+            HideSpark();
 
             // หยุดจับความดัง แต่ค่าที่จับได้ยังอ่านได้ เพราะ SpellCaster อ่านทีหลัง
             if (voicePower != null) voicePower.StopCapture();
@@ -403,6 +415,12 @@ namespace MagicDrawing
         private void UpdateMovementLock()
         {
             if (player != null) player.MovementLocked = phase != CastPhase.Idle;
+        }
+
+        private void OnDestroy()
+        {
+            // สร้างเองก็ต้องเก็บเอง ไม่งั้นเปลี่ยนซีนแล้วจุดค้างอยู่กลางจอ
+            if (drawSpark != null) Destroy(drawSpark.gameObject);
         }
 
         private void OnDisable()
@@ -520,6 +538,76 @@ namespace MagicDrawing
             activeLine.positionCount = currentStroke.Count;
             for (int i = 0; i < currentStroke.Count; i++)
                 activeLine.SetPosition(i, new Vector3(currentStroke[i].x, currentStroke[i].y, 0f));
+
+            if (currentStroke.Count > 0)
+                ShowSpark(currentStroke[currentStroke.Count - 1]);
+        }
+
+        // ---------- ประกายไฟที่ปลายปากกา ----------
+
+        /// <summary>
+        /// จุดเรืองแสงวิ่งตามปลายเส้นตอนกำลังลาก
+        ///
+        /// ทำให้รู้สึกว่ากำลัง "เขียนเวท" ไม่ใช่แค่ลากเส้นในโปรแกรมวาดรูป
+        /// และช่วยให้ตาจับตำแหน่งปัจจุบันได้ง่ายตอนลากเร็ว ๆ
+        /// </summary>
+        private void ShowSpark(Vector2 position)
+        {
+            if (drawSpark == null)
+            {
+                var holder = new GameObject("SpellDrawSpark");
+                drawSpark = holder.AddComponent<SpriteRenderer>();
+                drawSpark.sprite = SparkSprite;
+                drawSpark.material = SharedMaterial;
+                drawSpark.sortingOrder = 650;
+            }
+
+            drawSpark.enabled = true;
+            drawSpark.transform.position = new Vector3(position.x, position.y, 0f);
+
+            // เต้นเบา ๆ ให้ดูมีชีวิต ไม่ใช่จุดนิ่ง ๆ
+            float pulse = 0.85f + Mathf.Sin(Time.time * 14f) * 0.15f;
+            drawSpark.transform.localScale = Vector3.one * pulse;
+        }
+
+        private void HideSpark()
+        {
+            if (drawSpark != null) drawSpark.enabled = false;
+        }
+
+        /// <summary>จุดนุ่ม ๆ สว่างตรงกลางจางที่ขอบ สร้างครั้งเดียวใช้ร่วมกันทุกตัว</summary>
+        private static Sprite SparkSprite
+        {
+            get
+            {
+                if (sparkSprite != null) return sparkSprite;
+
+                const int size = 32;
+                var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                var pixels = new Color32[size * size];
+                float center = (size - 1) * 0.5f;
+
+                for (int y = 0; y < size; y++)
+                {
+                    for (int x = 0; x < size; x++)
+                    {
+                        float dx = x - center;
+                        float dy = y - center;
+                        float radius = Mathf.Sqrt(dx * dx + dy * dy) / center;
+                        float alpha = Mathf.Pow(Mathf.Clamp01(1f - radius), 2.2f);
+                        pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
+                    }
+                }
+
+                texture.SetPixels32(pixels);
+                texture.Apply();
+
+                // หารสี่ทำให้จุดกว้างประมาณ 0.25 หน่วย พอดีกับความหนาของเส้น
+                sparkSprite = Sprite.Create(
+                    texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size * 4f);
+
+                return sparkSprite;
+            }
         }
 
         private void TintStrokes(Color color)

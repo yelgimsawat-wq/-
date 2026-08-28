@@ -48,7 +48,8 @@ public static class MagicGameSetup
     private const string SceneFolder = "Assets/Scenes";
     // ใช้ชื่อ Menu ตามที่ผู้ใช้ตั้งไว้เอง จะได้ไม่มีซีนซ้ำซ้อนสองชุด
     private const string LobbyScenePath = SceneFolder + "/Menu.unity";
-    private const string GameScenePath = SceneFolder + "/Game.unity";
+    private const string GameSceneName = "Game";
+    private const string GameScenePath = SceneFolder + "/" + GameSceneName + ".unity";
 
     private const int CircleTextureSize = 256;
 
@@ -129,9 +130,20 @@ public static class MagicGameSetup
             manager.NetworkConfig = new NetworkConfig();
 
         manager.NetworkConfig.NetworkTransport = transport;
-        manager.NetworkConfig.PlayerPrefab = playerPrefab;
         // ต้องเปิด ไม่งั้น Host สั่งโหลดซีนแล้วคนอื่นไม่ตามไปด้วย
         manager.NetworkConfig.EnableSceneManagement = true;
+
+        // ปล่อยว่างไว้โดยตั้งใจ ถ้าใส่ตรงนี้ Netcode จะสร้างตัวละครทันทีที่เชื่อมต่อ
+        // ซึ่งเกิดตั้งแต่ยังอยู่หน้าเมนู แล้วจะมีแคปซูลโผล่มายืนกลางเมนู
+        // ให้ PlayerSpawner เป็นคนสร้างตอนเข้าสนามรบแทน
+        // (prefab ยังลงทะเบียนอยู่ใน DefaultNetworkPrefabs.asset อยู่แล้ว)
+        manager.NetworkConfig.PlayerPrefab = null;
+
+        var spawner = go.AddComponent<PlayerSpawner>();
+        var spawnerSo = new SerializedObject(spawner);
+        spawnerSo.FindProperty("playerPrefab").objectReferenceValue = playerPrefab;
+        spawnerSo.FindProperty("gameSceneName").stringValue = GameSceneName;
+        spawnerSo.ApplyModifiedPropertiesWithoutUndo();
 
         go.AddComponent<OnlineUI2D>();
 
