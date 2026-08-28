@@ -20,7 +20,9 @@ using UnityEngine.SceneManagement;
 /// สิ่งที่สร้าง:
 /// - Assets/Art/Generated/MagicCircle.png   ภาพวงเวทวาดด้วยโค้ด (พื้นหลังโปร่งใส)
 /// - Assets/Art/Generated/WhiteSquare.png   สี่เหลี่ยมขาวสำหรับทำพื้น
+/// - Assets/Art/Generated/SpellOrb.png      ลูกกลมเรืองแสงสำหรับทำลูกเวท
 /// - Assets/Prefabs/MagicCircle.prefab      Prefab วงเวท
+/// - Assets/Prefabs/SpellProjectile.prefab  Prefab ลูกเวทที่พุ่งไปข้างหน้า พร้อมหาง
 /// - Assets/Prefabs/Player.prefab           Prefab ผู้เล่น ใส่ครบทั้งเดินและร่ายเวท
 /// - Ground ในฉาก พื้นให้ยืน เพราะตัวละครเปิดแรงโน้มถ่วง
 /// - NetworkManager ในฉาก พร้อมผูก Player Prefab และ Unity Transport
@@ -33,6 +35,8 @@ public static class MagicGameSetup
     private const string PrefabFolder = "Assets/Prefabs";
     private const string CircleTexturePath = ArtFolder + "/MagicCircle.png";
     private const string SquareTexturePath = ArtFolder + "/WhiteSquare.png";
+    private const string OrbTexturePath = ArtFolder + "/SpellOrb.png";
+    private const string ProjectilePrefabPath = PrefabFolder + "/SpellProjectile.prefab";
     private const string CirclePrefabPath = PrefabFolder + "/MagicCircle.prefab";
     private const string PlayerPrefabPath = PrefabFolder + "/Player.prefab";
 
@@ -47,8 +51,11 @@ public static class MagicGameSetup
 
         Sprite circleSprite = CreateMagicCircleSprite();
         Sprite squareSprite = CreateSquareSprite();
+        Sprite orbSprite = CreateOrbSprite();
+
         MagicCircle circlePrefab = CreateMagicCirclePrefab(circleSprite);
-        GameObject playerPrefab = CreatePlayerPrefab(circlePrefab);
+        SpellProjectile projectilePrefab = CreateProjectilePrefab(orbSprite);
+        GameObject playerPrefab = CreatePlayerPrefab(circlePrefab, projectilePrefab);
 
         SetupGround(squareSprite);
         SetupNetworkManager(playerPrefab);
@@ -143,6 +150,55 @@ public static class MagicGameSetup
     }
 
     /// <summary>
+    /// ลูกกลมเรืองแสง ขาวล้วน สำหรับทำลูกเวท
+    /// สว่างตรงกลางแล้วจางออกไปที่ขอบ เวลาย้อมสีธาตุจะดูเหมือนพลังงานจริง
+    /// </summary>
+    private static Sprite CreateOrbSprite()
+    {
+        const int size = 128;
+
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        var pixels = new Color32[size * size];
+
+        float center = (size - 1) * 0.5f;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = x - center;
+                float dy = y - center;
+                float radius = Mathf.Sqrt(dx * dx + dy * dy) / center;
+
+                // ยกกำลังทำให้แกนกลางทึบและขอบจางเร็ว ดูเป็นลูกไฟมากกว่าวงกลมแบน
+                float alpha = Mathf.Clamp01(1f - radius);
+                alpha = Mathf.Pow(alpha, 1.8f);
+
+                pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
+            }
+        }
+
+        texture.SetPixels32(pixels);
+        texture.Apply();
+
+        File.WriteAllBytes(OrbTexturePath, texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+
+        AssetDatabase.ImportAsset(OrbTexturePath, ImportAssetOptions.ForceUpdate);
+
+        var importer = (TextureImporter)AssetImporter.GetAtPath(OrbTexturePath);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.alphaIsTransparency = true;
+        importer.mipmapEnabled = false;
+        // 256 ต่อหน่วย ทำให้ลูกเวทกว้างประมาณครึ่งหน่วย พอดีกับตัวละคร
+        importer.spritePixelsPerUnit = 256f;
+        importer.SaveAndReimport();
+
+        return AssetDatabase.LoadAssetAtPath<Sprite>(OrbTexturePath);
+    }
+
+    /// <summary>
     /// สี่เหลี่ยมขาวล้วนสำหรับทำพื้น
     /// ตั้ง Pixels Per Unit เท่ากับขนาดภาพพอดี sprite จึงกว้าง 1 หน่วยเป๊ะ
     /// ทำให้ BoxCollider2D ที่วัดขนาดจากภาพตรงกับที่ตาเห็นเสมอแม้จะสเกลทีหลัง
@@ -199,6 +255,36 @@ public static class MagicGameSetup
 
     // ---------- Prefab ----------
 
+    /// <summary>
+    /// ลูกเวทที่พุ่งไปข้างหน้า พร้อมหางเรืองแสง
+    /// TrailRenderer ต้องมีวัสดุของตัวเอง ไม่งั้นจะขึ้นเป็นสีชมพูบอกว่าหาวัสดุไม่เจอ
+    /// </summary>
+    private static SpellProjectile CreateProjectilePrefab(Sprite orbSprite)
+    {
+        var root = new GameObject("SpellProjectile");
+
+        var renderer = root.AddComponent<SpriteRenderer>();
+        renderer.sprite = orbSprite;
+        renderer.sortingOrder = 450;
+
+        var trail = root.AddComponent<TrailRenderer>();
+        trail.time = 0.22f;
+        trail.startWidth = 0.35f;
+        trail.endWidth = 0f;
+        trail.numCapVertices = 4;
+        trail.material = new Material(Shader.Find("Sprites/Default"));
+        trail.sortingOrder = 440;
+        // ไม่ให้หางลากตามตอนที่ prefab ถูกย้ายตำแหน่งตอนเกิด
+        trail.autodestruct = false;
+
+        root.AddComponent<SpellProjectile>();
+
+        GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, ProjectilePrefabPath);
+        Object.DestroyImmediate(root);
+
+        return saved.GetComponent<SpellProjectile>();
+    }
+
     private static MagicCircle CreateMagicCirclePrefab(Sprite sprite)
     {
         var root = new GameObject("MagicCircle");
@@ -215,7 +301,7 @@ public static class MagicGameSetup
         return saved.GetComponent<MagicCircle>();
     }
 
-    private static GameObject CreatePlayerPrefab(MagicCircle circlePrefab)
+    private static GameObject CreatePlayerPrefab(MagicCircle circlePrefab, SpellProjectile projectilePrefab)
     {
         var root = new GameObject("Player");
 
@@ -242,7 +328,7 @@ public static class MagicGameSetup
         var caster = root.AddComponent<SpellCaster>();
         root.AddComponent<SpellDrawing>();
 
-        WireSpellCaster(caster, circlePrefab);
+        WireSpellCaster(caster, circlePrefab, projectilePrefab);
 
         GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, PlayerPrefabPath);
         Object.DestroyImmediate(root);
@@ -255,11 +341,15 @@ public static class MagicGameSetup
     /// เข้าถึงตรง ๆ ไม่ได้เพราะเป็น [SerializeField] private ซึ่งถูกต้องแล้ว
     /// (ไม่ควรเปิดเป็น public แค่เพื่อให้สคริปต์ติดตั้งเขียนได้)
     /// </summary>
-    private static void WireSpellCaster(SpellCaster caster, MagicCircle circlePrefab)
+    private static void WireSpellCaster(
+        SpellCaster caster,
+        MagicCircle circlePrefab,
+        SpellProjectile projectilePrefab)
     {
         var so = new SerializedObject(caster);
 
         so.FindProperty("fallbackCirclePrefab").objectReferenceValue = circlePrefab;
+        so.FindProperty("fallbackProjectilePrefab").objectReferenceValue = projectilePrefab;
 
         SerializedProperty visuals = so.FindProperty("elementVisuals");
         visuals.arraySize = 4;
@@ -269,8 +359,7 @@ public static class MagicGameSetup
             SerializedProperty entry = visuals.GetArrayElementAtIndex(i);
             entry.FindPropertyRelative("element").enumValueIndex = i;
             entry.FindPropertyRelative("circlePrefab").objectReferenceValue = circlePrefab;
-            // ลูกเวทยังไม่มีอาร์ต ปล่อยว่างไว้ก่อน ใส่ทีหลังได้จาก Inspector
-            entry.FindPropertyRelative("projectilePrefab").objectReferenceValue = null;
+            entry.FindPropertyRelative("projectilePrefab").objectReferenceValue = projectilePrefab;
         }
 
         so.ApplyModifiedPropertiesWithoutUndo();

@@ -37,11 +37,20 @@ namespace MagicDrawing
             if (!tintByElement) return;
 
             Color tint = element.ToColor();
+
             foreach (SpriteRenderer renderer in GetComponentsInChildren<SpriteRenderer>(true))
             {
                 if (renderer == null) continue;
                 // เก็บ alpha เดิมไว้ ไม่งั้นภาพที่ตั้งใจให้จางจะทึบหมด
                 renderer.color = new Color(tint.r, tint.g, tint.b, renderer.color.a);
+            }
+
+            // หางลูกเวทต้องย้อมแยกต่างหาก TrailRenderer ไม่ใช่ SpriteRenderer
+            foreach (TrailRenderer trail in GetComponentsInChildren<TrailRenderer>(true))
+            {
+                if (trail == null) continue;
+                trail.startColor = new Color(tint.r, tint.g, tint.b, 0.85f);
+                trail.endColor = new Color(tint.r, tint.g, tint.b, 0f);
             }
         }
 

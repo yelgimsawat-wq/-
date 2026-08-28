@@ -46,8 +46,11 @@ namespace MagicDrawing
         [Header("ภาพประจำแต่ละธาตุ")]
         [SerializeField] private ElementVisual[] elementVisuals;
 
-        [Tooltip("ใช้เมื่อธาตุนั้นยังไม่ได้ใส่ prefab เอาไว้กันลืม")]
+        [Tooltip("วงเวทสำรอง ใช้เมื่อธาตุนั้นยังไม่ได้ใส่ของตัวเอง")]
         [SerializeField] private MagicCircle fallbackCirclePrefab;
+
+        [Tooltip("ลูกเวทสำรอง ใช้เมื่อธาตุนั้นยังไม่ได้ใส่ของตัวเอง")]
+        [SerializeField] private SpellProjectile fallbackProjectilePrefab;
 
         [Header("เส้นที่วาดค้างไว้บนแผนที่")]
         [Tooltip("แสดงเส้นที่ผู้เล่นเขียนให้ทุกคนเห็นด้วย ปิดได้ถ้าอยากเห็นแค่วงเวท")]
@@ -132,9 +135,13 @@ namespace MagicDrawing
                 circle.Play(element);
             }
 
-            if (visual != null && visual.projectilePrefab != null)
+            SpellProjectile projectilePrefab = visual != null && visual.projectilePrefab != null
+                ? visual.projectilePrefab
+                : fallbackProjectilePrefab;
+
+            if (projectilePrefab != null)
             {
-                SpellProjectile projectile = Instantiate(visual.projectilePrefab, origin, rotation);
+                SpellProjectile projectile = Instantiate(projectilePrefab, origin, rotation);
                 projectile.Launch(aim, element);
             }
         }
