@@ -22,11 +22,15 @@ public class NetworkPlayer2D : NetworkBehaviour
     [Header("การเดิน")]
     [SerializeField] private float moveSpeed = 5f;
 
-    [Tooltip("แรงโน้มถ่วง ตั้ง 0 ถ้าอยากได้แบบลอยไม่มีพื้น")]
-    [SerializeField] private float gravityScale = 3f;
+    [Tooltip("แรงโน้มถ่วง ค่าเริ่มต้นเป็น 0 เพื่อให้เล่นได้แม้ยังไม่มีพื้นในฉาก "
+             + "ตั้ง 3 ถ้าอยากได้แบบมีพื้นให้ยืน (ต้องมี Ground ในฉากด้วย)")]
+    [SerializeField] private float gravityScale = 0f;
 
     [Tooltip("แรงหน่วงแนวนอน ทำให้หยุดเร็วเวลาปล่อยปุ่ม")]
     [SerializeField] private float stopDamping = 12f;
+
+    [Tooltip("ตกต่ำกว่าระดับนี้แล้วดีดกลับจุดเกิด กันหลุดแมพหายไปเลย")]
+    [SerializeField] private float respawnBelowY = -30f;
 
     [Header("กล้อง")]
     [Tooltip("ให้กล้องหลักตามตัวเราอัตโนมัติตอนเกิด")]
@@ -39,6 +43,7 @@ public class NetworkPlayer2D : NetworkBehaviour
     private Rigidbody2D body;
     private SpriteRenderer spriteRenderer;
     private float moveInput;
+    private Vector3 spawnPosition;
 
     /// <summary>ล็อกการเดิน ใช้ตอนกำลังร่ายเวท</summary>
     public bool MovementLocked { get; set; }
@@ -56,8 +61,14 @@ public class NetworkPlayer2D : NetworkBehaviour
     {
         base.OnNetworkSpawn();
 
+        // ตั้งค่าฟิสิกส์จากสคริปต์ทั้งหมด ไม่พึ่งค่าที่ค้างอยู่ใน prefab
+        // เพราะ prefab อาจถูกสร้างไว้ตั้งแต่โค้ดเวอร์ชันเก่า แล้วค่าจะไม่ตรงกัน
         body.freezeRotation = true;
         body.gravityScale = gravityScale;
+        // หยุดตัวเองด้วย MoveTowards อยู่แล้ว ถ้ามี damping ซ้ำจะเดินหนืด
+        body.linearDamping = 0f;
+
+        spawnPosition = transform.position;
 
         if (!IsOwner)
         {
@@ -118,6 +129,15 @@ public class NetworkPlayer2D : NetworkBehaviour
     private void FixedUpdate()
     {
         if (!IsOwner) return;
+
+        // ตาข่ายกันตก: ถ้าฉากยังไม่มีพื้นหรือมีช่องโหว่ ก็ยังเล่นต่อได้
+        // ไม่ต้องออกห้องแล้วเข้าใหม่
+        if (transform.position.y < respawnBelowY)
+        {
+            transform.position = spawnPosition;
+            body.linearVelocity = Vector2.zero;
+            return;
+        }
 
         Vector2 velocity = body.linearVelocity;
 

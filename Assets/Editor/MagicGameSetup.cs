@@ -173,8 +173,11 @@ public static class MagicGameSetup
     }
 
     /// <summary>
-    /// พื้นให้ยืน จำเป็นเพราะตัวละครเปิดแรงโน้มถ่วงแล้ว
-    /// ถ้าไม่มีพื้น ผู้เล่นจะร่วงหายไปเรื่อย ๆ ตั้งแต่วินาทีแรก
+    /// พื้นให้ยืน
+    ///
+    /// ค่าเริ่มต้นของเกมตั้งแรงโน้มถ่วงเป็น 0 จึงยังไม่จำเป็นต้องมีพื้นก็เล่นได้
+    /// แต่สร้างไว้ให้เลย เผื่ออยากเปลี่ยนเป็นแนวมีพื้นให้ยืน แค่ตั้ง
+    /// Gravity Scale ใน Network Player 2D เป็น 3 ก็ใช้ได้ทันที
     /// </summary>
     private static void SetupGround(Sprite squareSprite)
     {
@@ -224,9 +227,9 @@ public static class MagicGameSetup
 
         var body = root.AddComponent<Rigidbody2D>();
         body.freezeRotation = true;
-        // NetworkPlayer2D เป็นคนตั้งแรงโน้มถ่วงตอนเกิด และหยุดตัวเองด้วย MoveTowards
-        // ถ้าใส่ damping ตรงนี้ด้วยจะไปหน่วงซ้ำจนเดินหนืด
-        body.gravityScale = 3f;
+        // ค่าพวกนี้ NetworkPlayer2D ตั้งทับให้เองตอนเกิดอยู่แล้ว ใส่ไว้ให้ตรงกัน
+        // เพื่อไม่ให้คนที่เปิดดู Inspector สับสนว่าทำไมค่าไม่ตรงกับตอนเล่น
+        body.gravityScale = 0f;
         body.linearDamping = 0f;
 
         var collider = root.AddComponent<CircleCollider2D>();

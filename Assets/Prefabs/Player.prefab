@@ -17,6 +17,7 @@ GameObject:
   - component: {fileID: 1207679892652939560}
   - component: {fileID: 4896827062353591571}
   - component: {fileID: 5624801442815992684}
+  - component: {fileID: -1509098212739319472}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -246,7 +247,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NetworkPlayer2D
   ShowTopMostFoldoutHeaderGroup: 1
   moveSpeed: 5
+  gravityScale: 3
+  stopDamping: 12
   followWithMainCamera: 1
+  flipSpriteWithFacing: 1
 --- !u!114 &4896827062353591571
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -260,21 +264,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MagicDrawing.SpellCaster
   ShowTopMostFoldoutHeaderGroup: 1
-  castOrigin: {fileID: 0}
-  castOffset: {x: 0, y: 1.2}
+  castDistance: 1.2
   elementVisuals:
   - element: 0
     circlePrefab: {fileID: 7528120208928373842, guid: 450fc0a531edc9b48976421412ae7557, type: 3}
-    castEffectPrefab: {fileID: 0}
+    projectilePrefab: {fileID: 0}
   - element: 1
     circlePrefab: {fileID: 7528120208928373842, guid: 450fc0a531edc9b48976421412ae7557, type: 3}
-    castEffectPrefab: {fileID: 0}
+    projectilePrefab: {fileID: 0}
   - element: 2
     circlePrefab: {fileID: 7528120208928373842, guid: 450fc0a531edc9b48976421412ae7557, type: 3}
-    castEffectPrefab: {fileID: 0}
+    projectilePrefab: {fileID: 0}
   - element: 3
     circlePrefab: {fileID: 7528120208928373842, guid: 450fc0a531edc9b48976421412ae7557, type: 3}
-    castEffectPrefab: {fileID: 0}
+    projectilePrefab: {fileID: 0}
   fallbackCirclePrefab: {fileID: 7528120208928373842, guid: 450fc0a531edc9b48976421412ae7557, type: 3}
   showDrawnStroke: 1
   strokeLifetime: 1.2
@@ -292,10 +295,52 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 216b199b453673548983671c0fa36734, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MagicDrawing.SpellDrawing
-  previewLine: {fileID: 0}
   drawCamera: {fileID: 0}
   minPointDistance: 0.12
-  maxPoints: 512
+  maxPointsPerStroke: 512
   minStrokeLength: 0.5
+  maxStrokes: 12
+  windMinStrokes: 4
   minimumScore: 0.7
+  confirmKey: 1
+  cancelKey: 60
+  strokeWidth: 0.1
+  aimArrowLength: 2.5
+  showOnScreenHint: 1
   logRecognition: 1
+--- !u!58 &-1509098212739319472
+CircleCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1397738765169638225}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_IsTrigger: 0
+  m_UsedByEffector: 0
+  m_CompositeOperation: 0
+  m_CompositeOrder: 0
+  m_Offset: {x: 0, y: 0}
+  m_Radius: 0.1
