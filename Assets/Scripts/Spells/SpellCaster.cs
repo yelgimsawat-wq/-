@@ -139,11 +139,32 @@ namespace MagicDrawing
                 ? visual.projectilePrefab
                 : fallbackProjectilePrefab;
 
-            if (projectilePrefab != null)
+            // ไม่มี prefab ก็ยังต้องยิงออกไปได้ ไม่งั้นเวทจะเงียบหายโดยไม่มี error
+            SpellProjectile projectile = projectilePrefab != null
+                ? Instantiate(projectilePrefab, origin, rotation)
+                : CreateFallbackProjectile(origin, rotation);
+
+            projectile.Launch(aim, element);
+        }
+
+        private static bool warnedAboutMissingProjectile;
+
+        /// <summary>
+        /// สร้างลูกเวทเองเมื่อไม่มี Prefab ให้ใช้ พร้อมเตือนหนึ่งครั้งว่ากำลังใช้ของสำรอง
+        /// เตือนแค่ครั้งเดียวเพราะยิงรัว ๆ แล้วเตือนทุกนัดจะท่วม Console จนอ่านอย่างอื่นไม่ออก
+        /// </summary>
+        private SpellProjectile CreateFallbackProjectile(Vector3 origin, Quaternion rotation)
+        {
+            if (!warnedAboutMissingProjectile)
             {
-                SpellProjectile projectile = Instantiate(projectilePrefab, origin, rotation);
-                projectile.Launch(aim, element);
+                warnedAboutMissingProjectile = true;
+                Debug.LogWarning(
+                    "[SpellCaster] ไม่มี Prefab ลูกเวท กำลังใช้ลูกเวทที่สร้างด้วยโค้ดแทน\n"
+                    + "ถ้าอยากใช้อาร์ตของตัวเอง สั่ง Tools > เกมวาดวงเวท > ติดตั้งฉากอัตโนมัติ "
+                    + "แล้วใส่ Prefab ในช่อง Element Visuals ของ Spell Caster");
             }
+
+            return SpellProjectile.CreateFallback(origin, rotation);
         }
 
         private ElementVisual FindVisual(SpellElement element)
