@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
@@ -29,9 +28,6 @@ namespace MagicDrawing
 
         [Tooltip("ต้องมีผู้เล่นอย่างน้อยกี่คนถึงจะเริ่มนับแพ้ชนะ")]
         [SerializeField] private int minPlayersToStart = 2;
-
-        [Tooltip("จบรอบแล้วรอกี่วินาทีก่อนเริ่มรอบใหม่")]
-        [SerializeField] private float restartDelay = 5f;
 
         [Tooltip("ข้อความประกาศผลกลางจอ ผูกโดยสคริปต์ติดตั้ง")]
         [SerializeField] private Text banner;
@@ -123,28 +119,16 @@ namespace MagicDrawing
             }
         }
 
+        /// <summary>
+        /// ปิดรอบแล้วค้างผลไว้ ไม่เริ่มรอบใหม่เองและไม่ปลุกใครกลับมา
+        ///
+        /// กติกาของเกมนี้คือตายแล้วจบ ไม่มีเกิดใหม่ ผู้เล่นดูผลแล้วกดออกจากห้องเอง
+        /// ถ้าเริ่มรอบใหม่อัตโนมัติ คนที่เพิ่งแพ้จะไม่ทันได้เห็นว่าใครชนะ
+        /// </summary>
         private void EndRound(ulong winner)
         {
             state.Value = MatchState.RoundOver;
             winnerClientId.Value = winner;
-
-            StartCoroutine(RestartAfterDelay());
-        }
-
-        private IEnumerator RestartAfterDelay()
-        {
-            yield return new WaitForSeconds(restartDelay);
-
-            // ปลุกทุกคนกลับมาแล้วเริ่มใหม่
-            foreach (PlayerHealth health in FindAllPlayers())
-                health.ReviveServer();
-
-            RefreshAliveCount();
-
-            winnerClientId.Value = NoWinner;
-            state.Value = aliveCount.Value >= minPlayersToStart
-                ? MatchState.Playing
-                : MatchState.Waiting;
         }
 
         private void RefreshAliveCount()
@@ -201,12 +185,17 @@ namespace MagicDrawing
                         : "";
 
                 case MatchState.RoundOver:
-                    if (winnerClientId.Value == NoWinner) return "เสมอ — ไม่มีใครรอด";
+                    // ต้องบอกทางออกด้วย เพราะเกมไม่เริ่มรอบใหม่เอง
+                    // ถ้าบอกแค่ผลแพ้ชนะ ผู้เล่นจะนั่งรอว่าเมื่อไรจะเริ่มใหม่
+                    const string howToLeave = "   —   กดออกจากห้องเพื่อกลับหน้าเมนู";
+
+                    if (winnerClientId.Value == NoWinner)
+                        return "เสมอ — ไม่มีใครรอด" + howToLeave;
 
                     bool youWon = NetworkManager != null
                                   && winnerClientId.Value == NetworkManager.LocalClientId;
 
-                    return youWon ? "คุณชนะ!" : "คุณแพ้";
+                    return (youWon ? "คุณชนะ!" : "คุณแพ้") + howToLeave;
 
                 default:
                     // ตกรอบแล้วต้องบอกให้ชัด ไม่งั้นผู้เล่นจะงงว่าทำไมคุมอะไรไม่ได้

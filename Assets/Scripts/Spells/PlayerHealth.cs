@@ -40,7 +40,6 @@ namespace MagicDrawing
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
 
-        private Vector3 spawnPosition;
         private NetworkPlayer2D player;
 
         public int CurrentHp => currentHp.Value;
@@ -63,7 +62,6 @@ namespace MagicDrawing
             base.OnNetworkSpawn();
 
             currentHp.OnValueChanged += HandleHpChanged;
-            spawnPosition = transform.position;
 
             if (IsServer)
             {
@@ -159,9 +157,8 @@ namespace MagicDrawing
         }
 
         /// <summary>
-        /// ตายแล้วตกรอบเลย ไม่เกิดใหม่เอง
-        /// ตัวจัดการรอบเป็นคนตัดสินว่าเมื่อไรจะปลุกทุกคนกลับมา
-        /// ถ้าให้เกิดใหม่เองอัตโนมัติจะไม่มีวันรู้ผลแพ้ชนะ
+        /// ตายแล้วจบเลย เกมนี้ไม่มีเกิดใหม่
+        /// ตัวละครหายจากจอ คุมอะไรไม่ได้ เหลือแค่ดูคนอื่นเล่นจนจบรอบ
         /// </summary>
         private void HandleDeath()
         {
@@ -171,36 +168,6 @@ namespace MagicDrawing
             SetVisibleClientRpc(false);
 
             if (MatchManager.Instance != null) MatchManager.Instance.ReportElimination(this);
-        }
-
-        /// <summary>ปลุกกลับมาเล่นรอบใหม่ เรียกจาก MatchManager ฝั่ง Server</summary>
-        public void ReviveServer()
-        {
-            if (!IsServer) return;
-
-            eliminated.Value = false;
-            currentHp.Value = maxHp;
-
-            TeleportClientRpc(spawnPosition);
-            SetVisibleClientRpc(true);
-        }
-
-        /// <summary>
-        /// ย้ายตัวละครกลับจุดเกิด
-        ///
-        /// ต้องให้เจ้าของเป็นคนย้ายเอง เพราะตำแหน่งเป็นแบบ owner authoritative
-        /// (ClientNetworkTransform2D) ถ้า Server ไปสั่งย้ายตรง ๆ เจ้าของจะส่ง
-        /// ตำแหน่งเดิมกลับมาทับทันที กลายเป็นย้ายไม่ติด
-        /// </summary>
-        [ClientRpc]
-        private void TeleportClientRpc(Vector3 position)
-        {
-            if (!IsOwner) return;
-
-            transform.position = position;
-
-            var body = GetComponent<Rigidbody2D>();
-            if (body != null) body.linearVelocity = Vector2.zero;
         }
 
         [Header("หลอดเลือด")]
