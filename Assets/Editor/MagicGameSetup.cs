@@ -54,6 +54,7 @@ public static class MagicGameSetup
     private const string ProjectilePrefabPath = PrefabFolder + "/SpellProjectile.prefab";
     private const string CirclePrefabPath = PrefabFolder + "/MagicCircle.prefab";
     private const string PlayerPrefabPath = PrefabFolder + "/Player.prefab";
+    private const string MatchManagerPrefabPath = PrefabFolder + "/MatchManager.prefab";
 
     private const string SceneFolder = "Assets/Scenes";
     // ใช้ชื่อ Menu ตามที่ผู้ใช้ตั้งไว้เอง จะได้ไม่มีซีนซ้ำซ้อนสองชุด
@@ -89,11 +90,12 @@ public static class MagicGameSetup
         MagicCircle circlePrefab = CreateMagicCirclePrefab(circleSprite);
         SpellProjectile projectilePrefab = CreateProjectilePrefab(orbSprite);
         GameObject playerPrefab = CreatePlayerPrefab(circlePrefab, projectilePrefab, capsuleSprite);
+        GameObject matchManagerPrefab = CreateMatchManagerPrefab();
 
         // สร้างซีนเกมก่อน แล้วค่อยซีนห้องรอ เพื่อให้จบด้วยการเปิดซีนห้องรอค้างไว้
         // ซึ่งเป็นซีนที่ผู้เล่นต้องกด Play จากตรงนั้น
         BuildGameScene(squareSprite);
-        BuildLobbyScene(playerPrefab);
+        BuildLobbyScene(playerPrefab, matchManagerPrefab);
 
         RegisterScenesInBuildSettings();
         AssetDatabase.SaveAssets();
@@ -134,7 +136,7 @@ public static class MagicGameSetup
     /// DontDestroyOnLoad ให้ NetworkManager ตอนเริ่มทำงาน เมนูจึงติดตามไปด้วย
     /// ทำให้ยังกดออกจากห้องและดูรหัสห้องได้แม้อยู่ในสนามรบแล้ว
     /// </summary>
-    private static void BuildLobbyScene(GameObject playerPrefab)
+    private static void BuildLobbyScene(GameObject playerPrefab, GameObject matchManagerPrefab)
     {
         Scene scene = OpenOrCreateScene(LobbyScenePath);
 
@@ -164,6 +166,7 @@ public static class MagicGameSetup
         var spawner = go.AddComponent<PlayerSpawner>();
         var spawnerSo = new SerializedObject(spawner);
         spawnerSo.FindProperty("playerPrefab").objectReferenceValue = playerPrefab;
+        spawnerSo.FindProperty("matchManagerPrefab").objectReferenceValue = matchManagerPrefab;
         spawnerSo.FindProperty("gameSceneName").stringValue = GameSceneName;
         spawnerSo.ApplyModifiedPropertiesWithoutUndo();
 
@@ -177,12 +180,10 @@ public static class MagicGameSetup
 
         Text matchBanner = BuildMenuCanvas(ui, go.transform);
 
-        // ตัวจัดการรอบต้องอยู่ตัวเดียวกับ NetworkManager จะได้ข้ามซีนไปด้วย
-        // และมีตัวเดียวในเกมเสมอ
-        var match = go.AddComponent<MatchManager>();
-        var matchSo = new SerializedObject(match);
-        matchSo.FindProperty("banner").objectReferenceValue = matchBanner;
-        matchSo.ApplyModifiedPropertiesWithoutUndo();
+        // ป้ายประกาศผลประกาศตัวเองไว้ ให้ตัวจัดการรอบมาถามหาตอนทำงานจริง
+        // ผูกล่วงหน้าไม่ได้เพราะตัวจัดการรอบมาจาก prefab ซึ่งอ้างของในฉากไม่ได้
+        if (matchBanner != null && matchBanner.GetComponent<MatchBanner>() == null)
+            matchBanner.gameObject.AddComponent<MatchBanner>();
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene, LobbyScenePath);
@@ -400,6 +401,11 @@ public static class MagicGameSetup
 
         // ---- แถบสถานะล่างจอ ----
         Text statusText = CreateText(canvasGo.transform, "StatusText", "", 22, Color.white);
+
+        // แถบช่วยสอนกับหลอดวัดเสียง เคยวาดด้วย OnGUI ตอนนี้เป็นของบนแคนวาสแล้ว
+        // จึงย้าย ปรับขนาด เปลี่ยนสี และแก้ข้อความได้เองจาก Inspector
+        CreateHintBar(canvasGo.transform);
+        CreateVoiceMeter(canvasGo.transform);
         var statusRect = statusText.GetComponent<RectTransform>();
         statusRect.anchorMin = new Vector2(0.5f, 0f);
         statusRect.anchorMax = new Vector2(0.5f, 0f);
@@ -1079,6 +1085,14 @@ public static class MagicGameSetup
     /// </summary>
     private static void CreateGround(Sprite squareSprite)
     {
+        // ถ้าในฉากมีพื้นให้ยืนอยู่แล้ว ไม่ต้องสร้างเพิ่ม
+        //
+        // ผู้เล่นที่สร้างแมพเองมีพื้นของตัวเองอยู่แล้ว ถ้าสร้างซ้ำทุกครั้งที่ติดตั้ง
+        // จะได้แท่งเทา ๆ พาดกลางแมพเพิ่มขึ้นเรื่อย ๆ
+        // แท่งพื้นนี้มีไว้สำหรับฉากเปล่าเท่านั้น จะได้มีที่ยืนตั้งแต่กด Play ครั้งแรก
+        if (Object.FindObjectsByType<Collider2D>(FindObjectsSortMode.None).Length > 0)
+            return;
+
         var go = new GameObject("Ground");
 
         go.transform.position = new Vector3(0f, -4f, 0f);
@@ -1149,6 +1163,47 @@ public static class MagicGameSetup
         Object.DestroyImmediate(root);
 
         return saved.GetComponent<MagicCircle>();
+    }
+
+    /// <summary>
+    /// Prefab ตัวจัดการรอบ ต้องมี NetworkObject คู่กับ MatchManager เสมอ
+    ///
+    /// เคยแปะ MatchManager ไว้บน GameObject ของ NetworkManager ตรง ๆ ซึ่งใช้ไม่ได้
+    /// เพราะ NetworkManager ห้ามมี NetworkObject อยู่ด้วย NetworkBehaviour ตัวนั้น
+    /// จึงไม่เคย spawn และ IsServer เป็น false ตลอด ระบบแพ้ชนะเลยเงียบสนิท
+    /// </summary>
+    /// <summary>
+    /// ใส่ prefab ลงรายชื่อที่ Netcode รู้จัก
+    ///
+    /// Netcode ต้องรู้จัก prefab ล่วงหน้าถึงจะ spawn ข้ามเครื่องได้
+    /// ปกติมันเติมให้เองตอนสร้าง prefab ที่มี NetworkObject แต่การเติมอัตโนมัติ
+    /// ปิดได้ในตั้งค่าโปรเจกต์ จึงเติมซ้ำตรงนี้ให้แน่ใจ ถ้ามีอยู่แล้วก็ข้าม
+    /// </summary>
+    private static void RegisterNetworkPrefab(GameObject prefab)
+    {
+        const string listPath = "Assets/DefaultNetworkPrefabs.asset";
+
+        var list = AssetDatabase.LoadAssetAtPath<NetworkPrefabsList>(listPath);
+        if (list == null || prefab == null) return;
+
+        // PrefabList อ่านได้อย่างเดียว ต้องเพิ่มผ่านเมธอดของตัวมันเอง
+        if (list.Contains(prefab)) return;
+
+        list.Add(new NetworkPrefab { Prefab = prefab });
+        EditorUtility.SetDirty(list);
+    }
+
+    private static GameObject CreateMatchManagerPrefab()
+    {
+        var root = new GameObject("MatchManager");
+        root.AddComponent<NetworkObject>();
+        root.AddComponent<MatchManager>();
+
+        GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, MatchManagerPrefabPath);
+        Object.DestroyImmediate(root);
+
+        RegisterNetworkPrefab(saved);
+        return saved;
     }
 
     private static GameObject CreatePlayerPrefab(
@@ -1924,5 +1979,99 @@ public static class MagicGameSetup
                 }
             }
         }
+    }
+    /// <summary>
+    /// แถบบทช่วยสอนล่างจอ ย้ายจาก OnGUI มาเป็นข้อความบนแคนวาส
+    /// ข้อความจริงเก็บอยู่ใน SpellHintLabel แก้ได้จาก Inspector โดยไม่ต้องแตะโค้ด
+    /// </summary>
+    private static void CreateHintBar(Transform canvas)
+    {
+        var frame = new GameObject("HintBar", typeof(Image));
+        frame.transform.SetParent(canvas, false);
+
+        // พื้นหลังจาง ๆ พอให้อ่านออกบนฉากสว่าง แต่ไม่บังเกม
+        frame.GetComponent<Image>().color = new Color(0.08f, 0.09f, 0.14f, 0.55f);
+
+        var frameRect = frame.GetComponent<RectTransform>();
+        frameRect.anchorMin = new Vector2(0f, 0f);
+        frameRect.anchorMax = new Vector2(1f, 0f);
+        frameRect.pivot = new Vector2(0.5f, 0f);
+        frameRect.offsetMin = new Vector2(24f, 18f);
+        frameRect.offsetMax = new Vector2(-24f, 0f);
+        frameRect.sizeDelta = new Vector2(frameRect.sizeDelta.x, 74f);
+
+        Text label = CreateText(frame.transform, "HintText", "", 20, Color.white);
+        Object.DestroyImmediate(label.GetComponent<LayoutElement>());
+
+        var labelRect = label.GetComponent<RectTransform>();
+        StretchToParent(labelRect);
+        labelRect.offsetMin = new Vector2(16f, 8f);
+        labelRect.offsetMax = new Vector2(-16f, -8f);
+
+        label.alignment = TextAnchor.MiddleCenter;
+
+        var hint = frame.AddComponent<MagicDrawing.SpellHintLabel>();
+        var so = new SerializedObject(hint);
+        so.FindProperty("label").objectReferenceValue = label;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>
+    /// หลอดวัดเสียงพูดแนวตั้ง มุมขวาบน
+    ///
+    /// ใช้ Image แบบ Filled เติมจากล่างขึ้นบน จึงสั่งความสูงด้วยค่าเดียว
+    /// ไม่ต้องไปยุ่งกับขนาดของ RectTransform ทุกเฟรม
+    /// </summary>
+    private static void CreateVoiceMeter(Transform canvas)
+    {
+        var frame = new GameObject("VoiceMeter", typeof(Image));
+        frame.transform.SetParent(canvas, false);
+        frame.GetComponent<Image>().color = new Color(0.08f, 0.09f, 0.14f, 0.65f);
+
+        var frameRect = frame.GetComponent<RectTransform>();
+        frameRect.anchorMin = new Vector2(1f, 1f);
+        frameRect.anchorMax = new Vector2(1f, 1f);
+        frameRect.pivot = new Vector2(1f, 1f);
+        frameRect.anchoredPosition = new Vector2(-24f, -24f);
+        frameRect.sizeDelta = new Vector2(46f, 200f);
+
+        // ช่องด้านในเว้นขอบไว้ ให้เห็นกรอบรอบหลอด
+        var track = new GameObject("Track", typeof(Image));
+        track.transform.SetParent(frame.transform, false);
+        track.GetComponent<Image>().color = new Color(0.16f, 0.18f, 0.24f);
+
+        var trackRect = track.GetComponent<RectTransform>();
+        StretchToParent(trackRect);
+        trackRect.offsetMin = new Vector2(8f, 8f);
+        trackRect.offsetMax = new Vector2(-8f, -8f);
+
+        var fillGo = new GameObject("Fill", typeof(Image));
+        fillGo.transform.SetParent(track.transform, false);
+        StretchToParent(fillGo.GetComponent<RectTransform>());
+
+        var fill = fillGo.GetComponent<Image>();
+        // ต้องมี sprite ถึงจะใช้โหมด Filled ได้ ใช้ภาพสี่เหลี่ยมขาวที่สร้างไว้แล้ว
+        fill.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SquareTexturePath);
+        fill.type = Image.Type.Filled;
+        fill.fillMethod = Image.FillMethod.Vertical;
+        fill.fillOrigin = (int)Image.OriginVertical.Bottom;
+        fill.fillAmount = 0f;
+
+        Text status = CreateText(frame.transform, "Status", "", 13, Color.white);
+        Object.DestroyImmediate(status.GetComponent<LayoutElement>());
+
+        var statusRect = status.GetComponent<RectTransform>();
+        statusRect.anchorMin = new Vector2(0.5f, 0f);
+        statusRect.anchorMax = new Vector2(0.5f, 0f);
+        statusRect.pivot = new Vector2(0.5f, 1f);
+        statusRect.anchoredPosition = new Vector2(0f, -4f);
+        statusRect.sizeDelta = new Vector2(120f, 20f);
+        status.alignment = TextAnchor.UpperCenter;
+
+        var meter = frame.AddComponent<MagicDrawing.VoiceMeter>();
+        var so = new SerializedObject(meter);
+        so.FindProperty("fill").objectReferenceValue = fill;
+        so.FindProperty("statusLabel").objectReferenceValue = status;
+        so.ApplyModifiedPropertiesWithoutUndo();
     }
 }

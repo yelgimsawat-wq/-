@@ -155,7 +155,13 @@ namespace MagicDrawing
 
         private void Update()
         {
-            if (!HasAudioSource) return;
+            // ต้องอัปเดตหลอดก่อนออกจากเมธอด ไม่งั้นตอนไม่มีไมค์หลอดจะค้าง
+            // ไม่ขึ้นข้อความบอกว่าไม่มีไมค์เลย ผู้เล่นจะนึกว่าระบบพัง
+            if (!HasAudioSource)
+            {
+                PushMeter();
+                return;
+            }
 
             // เสียงมาจากสองทางได้ ไมค์ที่เราเปิดเอง หรือระบบ voice chat ป้อนมาให้
             float loudness = externalSource ? rawLoudness : ReadLoudness();
@@ -165,7 +171,10 @@ namespace MagicDrawing
             smoothedPower = Mathf.Lerp(smoothedPower, target, smoothing * Time.deltaTime);
 
             if (capturing && smoothedPower > peakPower) peakPower = smoothedPower;
+
+            PushMeter();
         }
+
 
         /// <summary>
         /// ความดังแบบ RMS ของช่วงเสียงล่าสุด
@@ -193,43 +202,26 @@ namespace MagicDrawing
                 Microphone.End(micDevice);
         }
 
-        private void OnGUI()
+        /// <summary>
+        /// ส่งความดังไปให้หลอดวัดบน Canvas
+        ///
+        /// ย้ายจาก OnGUI ที่โชว์เป็นเปอร์เซ็นต์ มาเป็นหลอดแนวตั้งที่สูงตามเสียง
+        /// ตัวเลขเปอร์เซ็นต์อ่านยากระหว่างเล่น ต้องละสายตาจากเกมมาอ่าน
+        /// แต่หลอดสีดูปราดเดียวรู้ว่าดังพอหรือยัง
+        ///
+        /// ตอนกำลังเขียนคาถาส่งค่าสูงสุดที่จับได้ ไม่ใช่ค่าปัจจุบัน
+        /// เพราะค่าสูงสุดคือค่าที่จะกลายเป็นความแรงเวทจริง ถ้าโชว์ค่าปัจจุบัน
+        /// ผู้เล่นจะไม่รู้เลยว่าที่ตะโกนไปเมื่อกี้ติดหรือเปล่า
+        /// </summary>
+        private void PushMeter()
         {
-            if (!showMeter) return;
-            if (caster == null || !caster.IsOwner) return;
+            VoiceMeter meter = VoiceMeter.Instance;
+            if (meter == null) return;
 
-            var box = new Rect(Screen.width - 190f, 16f, 174f, 54f);
-            GUI.Box(box, GUIContent.none);
+            if (!showMeter || caster == null || !caster.IsOwner) return;
 
-            string label = HasAudioSource
-                ? (externalSource ? $"เสียง {CurrentPower:P0} (voice chat)" : $"เสียง {CurrentPower:P0}")
-                : "ไม่มีไมค์ (ใช้ค่าคงที่)";
-
-            GUI.Label(new Rect(box.x + 8f, box.y + 4f, box.width - 16f, 20f), label);
-
-            // หลอดพื้นหลัง
-            var barBack = new Rect(box.x + 8f, box.y + 28f, box.width - 16f, 14f);
-            GUI.Box(barBack, GUIContent.none);
-
-            Color previous = GUI.color;
-
-            // หลอดจริงยาวตามความดังตอนนี้
-            var barFill = new Rect(barBack.x, barBack.y, barBack.width * CurrentPower, barBack.height);
-            GUI.color = Color.Lerp(Color.cyan, Color.red, CurrentPower);
-            GUI.Box(barFill, GUIContent.none);
-
-            // ขีดค้างที่ค่าสูงสุดตอนกำลังเขียนคาถา
-            // ผู้เล่นต้องเห็นว่าตะโกนไปแล้วได้เท่าไร เพราะนั่นคือค่าที่จะกลายเป็นดาเมจ
-            // ถ้าเห็นแค่ค่าปัจจุบันจะไม่รู้เลยว่าที่ตะโกนไปเมื่อกี้ติดหรือเปล่า
-            if (capturing && peakPower > 0.01f)
-            {
-                var peakMark = new Rect(
-                    barBack.x + barBack.width * peakPower - 1f, barBack.y - 2f, 2f, barBack.height + 4f);
-                GUI.color = Color.yellow;
-                GUI.Box(peakMark, GUIContent.none);
-            }
-
-            GUI.color = previous;
+            float level = capturing ? Mathf.Max(peakPower, CurrentPower) : CurrentPower;
+            meter.SetLevel(level, HasAudioSource);
         }
     }
 }

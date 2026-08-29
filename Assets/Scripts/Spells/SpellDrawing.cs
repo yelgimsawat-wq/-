@@ -132,6 +132,7 @@ namespace MagicDrawing
             else UpdateDrawing();
 
             UpdateMovementLock();
+            PushHint();
         }
 
         // ---------- ขั้นเขียนคาถา ----------
@@ -698,49 +699,41 @@ namespace MagicDrawing
 
         // ---------- คำใบ้บนจอ ----------
 
-        private void OnGUI()
+        /// <summary>
+        /// ส่งคำใบ้ไปให้ป้ายบน Canvas
+        ///
+        /// ย้ายจาก OnGUI มาเป็น Canvas เพื่อให้แก้ข้อความ ขนาด สี และตำแหน่งได้เอง
+        /// จาก Inspector ตัวข้อความอยู่ที่ SpellHintLabel ไม่ได้อยู่ที่นี่
+        /// เพราะสคริปต์นี้อยู่บน prefab ตัวละคร ซึ่งหาเจอยากกว่ามากเวลาอยากปรับคำ
+        ///
+        /// ถอดป้ายกลางจอที่เคยมีออกด้วย เพราะบอกเรื่องเดียวกับแถบล่าง
+        /// มีสองที่บอกซ้ำกันแล้วต้องแก้สองที่ทุกครั้งที่เปลี่ยนคำ
+        /// </summary>
+        private void PushHint()
         {
-            if (!showOnScreenHint) return;
-            if (caster == null || !caster.IsOwner) return;
+            SpellHintLabel hint = SpellHintLabel.Instance;
+            if (hint == null) return;
 
-            string hint;
+            if (!showOnScreenHint || caster == null || !caster.IsOwner)
+            {
+                hint.Hide();
+                return;
+            }
+
             switch (phase)
             {
                 case CastPhase.Composing:
-                    hint = $"เขียนคาถา {strokes.Count} ขีด  |  Space = ยืนยัน  |  Esc = ล้าง";
+                    hint.ShowComposing(strokes.Count);
                     break;
+
                 case CastPhase.Aiming:
-                    hint = $"เวท{pendingSpell.Element.ToThai()}  |  เลื่อนเมาส์เล็ง  |  Space หรือคลิก = ยิง  |  Esc = ยกเลิก";
+                    hint.ShowAiming(pendingSpell.Element.ToThai());
                     break;
+
                 default:
-                    hint = "A/D เดิน  |  ลากเมาส์เขียนคาถา  |  วงกลม=น้ำ สามเหลี่ยม=ไฟ สี่เหลี่ยม=ดิน ขีด 4 ขีด=ลม"
-                           + "\nวาดข้าง ๆ ตัว = ยิงออกไป  |  วาดทับตัวเอง = กางโล่ธาตุนั้น";
+                    hint.ShowIdle();
                     break;
             }
-
-            var area = new Rect(10, Screen.height - 70, Screen.width - 20, 60);
-            GUILayout.BeginArea(area, GUI.skin.box);
-            GUILayout.Label(hint);
-            if (!string.IsNullOrEmpty(statusMessage)) GUILayout.Label(statusMessage);
-            GUILayout.EndArea();
-
-            // ระหว่างที่เดินไม่ได้ ต้องบอกให้ชัดว่าเกมรออะไรอยู่และออกยังไง
-            // แถบล่างอย่างเดียวมองข้ามได้ง่าย โดยเฉพาะตอน Game view เล็ก
-            if (phase == CastPhase.Idle) return;
-
-            string banner = phase == CastPhase.Aiming
-                ? $"เล็งด้วยเมาส์ แล้วกด Space หรือคลิกเพื่อยิงเวท{pendingSpell.Element.ToThai()}"
-                : "กด Space เพื่อยืนยันคาถา";
-
-            var bannerStyle = new GUIStyle(GUI.skin.box)
-            {
-                fontSize = 18,
-                alignment = TextAnchor.MiddleCenter,
-                wordWrap = true,
-            };
-
-            var bannerRect = new Rect(Screen.width * 0.5f - 260f, 90f, 520f, 64f);
-            GUI.Box(bannerRect, banner + "\n(กด A หรือ D เพื่อยกเลิกแล้วเดินต่อ)", bannerStyle);
         }
     }
 }

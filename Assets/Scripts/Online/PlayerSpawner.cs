@@ -21,6 +21,9 @@ public class PlayerSpawner : MonoBehaviour
     [Tooltip("Prefab ตัวละคร ต้องมี NetworkObject")]
     [SerializeField] private GameObject playerPrefab;
 
+    [Tooltip("Prefab ตัวจัดการรอบ ต้องมี NetworkObject มีตัวเดียวทั้งเกม")]
+    [SerializeField] private GameObject matchManagerPrefab;
+
     [Tooltip("ชื่อซีนที่จะสร้างตัวละคร ต้องตรงกับชื่อซีนสนามรบ")]
     [SerializeField] private string gameSceneName = "Game";
 
@@ -80,6 +83,10 @@ public class PlayerSpawner : MonoBehaviour
         if (!manager.IsServer) return;
         if (sceneName != gameSceneName) return;
 
+        // ต้องมีตัวจัดการรอบก่อนผู้เล่นคนแรกเกิด ไม่งั้นคนแรกจะรายงานตัวไม่ทัน
+        // แล้วจำนวนคนที่ยังรอดจะนับขาดไปหนึ่ง
+        SpawnMatchManager();
+
         foreach (ulong clientId in clientsCompleted)
             SpawnFor(clientId);
     }
@@ -96,6 +103,27 @@ public class PlayerSpawner : MonoBehaviour
     private void HandleClientDisconnected(ulong clientId)
     {
         spawned.Remove(clientId);
+    }
+
+    /// <summary>
+    /// สร้างตัวจัดการรอบ ครั้งเดียวต่อหนึ่งเกม
+    ///
+    /// ต้องเป็น prefab ที่ spawn ผ่านเครือข่าย ไม่ใช่ component ที่แปะไว้ในฉาก
+    /// เพราะมันเป็น NetworkBehaviour ซึ่งต้องมี NetworkObject คู่กันเสมอ
+    /// ถ้าไม่ spawn จะสั่งงานฝั่ง Server ไม่ได้เลย
+    /// </summary>
+    private void SpawnMatchManager()
+    {
+        if (matchManagerPrefab == null)
+        {
+            Debug.LogError("[PlayerSpawner] ยังไม่ได้ใส่ Match Manager Prefab ระบบแพ้ชนะจะไม่ทำงาน", this);
+            return;
+        }
+
+        if (MagicDrawing.MatchManager.Instance != null) return;
+
+        GameObject instance = Instantiate(matchManagerPrefab);
+        instance.GetComponent<NetworkObject>().Spawn();
     }
 
     private void SpawnFor(ulong clientId)

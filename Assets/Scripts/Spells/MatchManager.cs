@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace MagicDrawing
 {
@@ -13,10 +12,16 @@ namespace MagicDrawing
     }
 
     /// <summary>
-    /// ตัวจัดการรอบการต่อสู้ ตัดสินแพ้ชนะและเริ่มรอบใหม่
+    /// ตัวจัดการรอบการต่อสู้ ตัดสินแพ้ชนะ
     ///
-    /// อยู่บน GameObject เดียวกับ NetworkManager จึงข้ามซีนไปด้วย
-    /// และมีตัวเดียวในเกมเสมอ
+    /// ต้องถูก spawn จาก prefab ที่มี NetworkObject เท่านั้น
+    ///
+    /// เคยวางไว้บน GameObject เดียวกับ NetworkManager ซึ่งใช้ไม่ได้เลย
+    /// เพราะ NetworkManager ห้ามมี NetworkObject อยู่ด้วย ตัวนี้จึงไม่เคย spawn
+    /// IsServer เป็น false ตลอด แล้ว ReportElimination ก็ return ทิ้งทุกครั้ง
+    /// ผลคือยิงจนเลือดหมดก็ไม่มีใครชนะ โดยไม่มี error ให้เห็นสักบรรทัด
+    ///
+    /// ตอนนี้ PlayerSpawner เป็นคน spawn ให้ตอนเข้าสนามรบ
     ///
     /// Server ตัดสินทุกอย่าง เครื่องผู้เล่นแค่อ่าน NetworkVariable ไปแสดงผล
     /// ถ้าปล่อยให้แต่ละเครื่องนับคนรอดเอง เน็ตหน่วงนิดเดียวก็ประกาศผู้ชนะ
@@ -28,9 +33,6 @@ namespace MagicDrawing
 
         [Tooltip("ต้องมีผู้เล่นอย่างน้อยกี่คนถึงจะเริ่มนับแพ้ชนะ")]
         [SerializeField] private int minPlayersToStart = 2;
-
-        [Tooltip("ข้อความประกาศผลกลางจอ ผูกโดยสคริปต์ติดตั้ง")]
-        [SerializeField] private Text banner;
 
         private readonly NetworkVariable<MatchState> state = new NetworkVariable<MatchState>(
             MatchState.Waiting,
@@ -167,10 +169,12 @@ namespace MagicDrawing
 
         private void Update()
         {
-            if (banner == null) return;
+            // ถามหาป้ายตอนทำงานจริง ไม่ใช่ผูกไว้ล่วงหน้า
+            // เพราะตัวนี้ถูกสร้างจาก prefab ซึ่งอ้างถึงของในฉากไม่ได้
+            MatchBanner target = MatchBanner.Instance;
+            if (target == null) return;
 
-            banner.text = BuildBannerText();
-            banner.gameObject.SetActive(!string.IsNullOrEmpty(banner.text));
+            target.Show(BuildBannerText());
         }
 
         private string BuildBannerText()
