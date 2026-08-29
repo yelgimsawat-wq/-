@@ -270,7 +270,7 @@ MonoBehaviour:
   windMinStrokes: 4
   minimumScore: 0.55
   shieldMargin: 0.4
-  fireVoiceThreshold: 0.38
+  fireVoiceThreshold: 0.45
   voiceReleaseLevel: 0.12
   voiceReleaseDelay: 0.25
   allowKeyFireWithoutMic: 1
