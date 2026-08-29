@@ -58,6 +58,16 @@ namespace MagicDrawing
         public MatchState State => state.Value;
         public int AliveCount => aliveCount.Value;
 
+        /// <summary>
+        /// ทะเบียนผู้เล่นที่อยู่ในรอบนี้
+        ///
+        /// เก็บเองแทนการไปไล่อ่าน NetworkManager.ConnectedClientsList เพราะตอนที่
+        /// OnNetworkSpawn ของผู้เล่นทำงาน Netcode ยังไม่ทันผูก PlayerObject
+        /// ให้ client คนนั้น ตัวที่กำลังเกิดจึงนับไม่ติด จำนวนคนจะช้ากว่าความจริง
+        /// หนึ่งคนเสมอ มีสองคนก็นับได้หนึ่ง แล้วรอบไม่ยอมเริ่ม
+        /// </summary>
+        private readonly List<PlayerHealth> players = new List<PlayerHealth>();
+
         private void Awake()
         {
             Instance = this;
@@ -109,10 +119,12 @@ namespace MagicDrawing
             EndRound(winner);
         }
 
-        /// <summary>ผู้เล่นเข้ามาใหม่หรือเกิดใหม่ ให้ทบทวนว่าเริ่มรอบได้หรือยัง</summary>
-        public void ReportSpawned()
+        /// <summary>ผู้เล่นเข้ามาใหม่ ลงทะเบียนแล้วทบทวนว่าเริ่มรอบได้หรือยัง</summary>
+        public void ReportSpawned(PlayerHealth player)
         {
             if (!IsServer) return;
+
+            if (player != null && !players.Contains(player)) players.Add(player);
 
             RefreshAliveCount();
 
@@ -135,6 +147,24 @@ namespace MagicDrawing
             winnerClientId.Value = winner;
         }
 
+        /// <summary>ผู้เล่นออกจากเกม ถอนออกจากทะเบียนแล้วทบทวนผล</summary>
+        public void ReportLeft(PlayerHealth player)
+        {
+            if (!IsServer) return;
+
+            players.Remove(player);
+            RefreshAliveCount();
+
+            // คนออกกลางรอบก็นับเป็นเหลือคนเดียวได้ ต้องตัดสินด้วย
+            // ไม่งั้นคนสุดท้ายจะยืนรอผลที่ไม่มีวันมา
+            if (state.Value != MatchState.Playing) return;
+
+            List<PlayerHealth> alive = GetAlivePlayers();
+            if (alive.Count > 1) return;
+
+            EndRound(alive.Count == 1 ? alive[0].OwnerClientId : NoWinner);
+        }
+
         private void RefreshAliveCount()
         {
             aliveCount.Value = GetAlivePlayers().Count;
@@ -150,20 +180,20 @@ namespace MagicDrawing
             return alive;
         }
 
-        /// <summary>
-        /// หาผู้เล่นทุกคนจากรายชื่อของ Netcode ไม่ใช่ FindObjectsOfType
-        /// เพราะรายชื่อนี้เชื่อถือได้กว่าและไม่ต้องกวาดทั้งฉากทุกครั้ง
-        /// </summary>
+        /// <summary>ผู้เล่นทุกคนที่ลงทะเบียนไว้ พร้อมเก็บกวาดตัวที่หายไปแล้ว</summary>
         private IEnumerable<PlayerHealth> FindAllPlayers()
         {
-            if (NetworkManager == null) yield break;
-
-            foreach (NetworkClient client in NetworkManager.ConnectedClientsList)
+            // เดินถอยหลังเพื่อเก็บกวาดตัวที่ถูกทำลายไปแล้วได้ระหว่างวน
+            // เช่นผู้เล่นหลุดออกไปแบบไม่ทันแจ้ง
+            for (int i = players.Count - 1; i >= 0; i--)
             {
-                if (client?.PlayerObject == null) continue;
+                if (players[i] == null)
+                {
+                    players.RemoveAt(i);
+                    continue;
+                }
 
-                var health = client.PlayerObject.GetComponent<PlayerHealth>();
-                if (health != null) yield return health;
+                yield return players[i];
             }
         }
 

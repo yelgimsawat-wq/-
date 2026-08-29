@@ -69,13 +69,19 @@ namespace MagicDrawing
                 eliminated.Value = false;
 
                 // แจ้งให้ตัวจัดการรอบทบทวนว่าคนครบพอจะเริ่มสู้แล้วหรือยัง
-                if (MatchManager.Instance != null) MatchManager.Instance.ReportSpawned();
+                if (MatchManager.Instance != null) MatchManager.Instance.ReportSpawned(this);
             }
         }
 
         public override void OnNetworkDespawn()
         {
             currentHp.OnValueChanged -= HandleHpChanged;
+
+            // ต้องแจ้งออกจากทะเบียนด้วย ไม่ใช่แค่ปล่อยให้ตัวถูกทำลายไป
+            // ถ้าไม่แจ้ง คนที่ปิดเกมหนีกลางรอบจะยังถูกนับว่ายังรอดอยู่
+            // แล้วคนสุดท้ายที่เหลือจะไม่มีวันได้รับการประกาศว่าชนะ
+            if (MatchManager.Instance != null) MatchManager.Instance.ReportLeft(this);
+
             base.OnNetworkDespawn();
         }
 
