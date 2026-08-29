@@ -23,6 +23,9 @@ namespace MagicDrawing
         [Tooltip("ข้อความบอกสถานะ เช่นตอนไม่มีไมค์ ปล่อยว่างได้")]
         [SerializeField] private Text statusLabel;
 
+        [Tooltip("เส้นบอกระดับที่ต้องตะโกนให้ถึงเพื่อยิงเวท ปล่อยว่างได้")]
+        [SerializeField] private RectTransform thresholdMarker;
+
         [Header("สีตามความดัง")]
         [SerializeField] private Color quietColor = new Color(0.35f, 0.85f, 0.40f);
         [SerializeField] private Color mediumColor = new Color(1f, 0.85f, 0.25f);
@@ -37,6 +40,8 @@ namespace MagicDrawing
         [SerializeField] private float followSpeed = 14f;
 
         private float shownLevel;
+        private float fireThreshold;
+        private bool thresholdVisible;
 
         private void Awake()
         {
@@ -70,7 +75,34 @@ namespace MagicDrawing
             shownLevel = Mathf.Lerp(shownLevel, target, 1f - Mathf.Exp(-Time.deltaTime * followSpeed));
 
             fill.fillAmount = shownLevel;
-            fill.color = ColorFor(shownLevel);
+
+            // ถึงเกณฑ์ยิงแล้วให้แดงเต็มทันที ไม่ต้องรอไล่สีถึงยอด
+            // ผู้เล่นจะได้รู้ชัดว่าพอแล้ว ไม่ต้องเดาว่าอีกนิดหรือเปล่า
+            bool reached = thresholdVisible && shownLevel >= fireThreshold;
+            fill.color = reached ? loudColor : ColorFor(shownLevel);
+        }
+
+        /// <summary>
+        /// ตั้งเส้นบอกระดับที่ต้องตะโกนให้ถึง
+        ///
+        /// จำเป็นมาก เพราะถ้าไม่มีเส้นนี้ผู้เล่นจะตะโกนแบบเดาไปเรื่อย ๆ
+        /// ว่าดังพอหรือยัง ไม่มีทางรู้เลยว่าอีกนิดเดียวหรืออีกไกล
+        /// </summary>
+        public void SetThreshold(float level, bool visible)
+        {
+            fireThreshold = Mathf.Clamp01(level);
+            thresholdVisible = visible;
+
+            if (thresholdMarker == null) return;
+
+            thresholdMarker.gameObject.SetActive(visible);
+            if (!visible) return;
+
+            // ยึดขอบล่างของหลอดเป็นศูนย์ แล้วเลื่อนขึ้นตามสัดส่วน
+            // ใช้ anchor แทนตำแหน่งเป็นพิกเซล หลอดจะได้ยืดหดตามขนาดจอได้
+            thresholdMarker.anchorMin = new Vector2(0f, fireThreshold);
+            thresholdMarker.anchorMax = new Vector2(1f, fireThreshold);
+            thresholdMarker.anchoredPosition = Vector2.zero;
         }
 
         /// <summary>

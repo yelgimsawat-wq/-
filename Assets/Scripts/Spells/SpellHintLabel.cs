@@ -37,7 +37,7 @@ namespace MagicDrawing
         [Tooltip("ตอนเล็งก่อนยิง  {0} = ชื่อธาตุ")]
         [TextArea(2, 4)]
         [SerializeField] private string aimingHint =
-            "เวท{0} พร้อมแล้ว  |  เลื่อนเมาส์เล็ง  |  Space หรือคลิก = ยิง  |  Esc = ยกเลิก";
+            "เวท{0} พร้อมแล้ว  |  เลื่อนเมาส์เล็ง  |  ตะโกนให้ถึงเส้นขาวเพื่อยิง  |  Esc = ยกเลิก";
 
         private void Awake()
         {

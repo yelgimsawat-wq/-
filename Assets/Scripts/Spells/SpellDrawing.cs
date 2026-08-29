@@ -61,6 +61,14 @@ namespace MagicDrawing
                  + "ถ้ารู้สึกว่ายิงใกล้ ๆ ตัวแล้วกลายเป็นโล่บ่อย ให้ลดค่านี้ลง")]
         [SerializeField] private float shieldMargin = 0.4f;
 
+        [Header("ยิงด้วยเสียง")]
+        [Tooltip("ตอนเล็งอยู่ ต้องตะโกนให้ดังถึงค่านี้เวทถึงจะออก")]
+        [Range(0.05f, 1f)]
+        [SerializeField] private float fireVoiceThreshold = 0.55f;
+
+        [Tooltip("ไม่มีไมค์ให้กดปุ่มยิงแทนได้ ปิดข้อนี้ = ไม่มีไมค์ก็ยิงไม่ได้เลย")]
+        [SerializeField] private bool allowKeyFireWithoutMic = true;
+
         [Header("ปุ่ม")]
         [SerializeField] private Key confirmKey = Key.Space;
         [SerializeField] private Key cancelKey = Key.Escape;
@@ -328,16 +336,44 @@ namespace MagicDrawing
                 // เมาส์ทับตัวละครพอดีจะหาทิศไม่ได้ คงทิศเดิมไว้
                 if (toPointer.sqrMagnitude > 0.0001f) aimDirection = toPointer.normalized;
 
-                if (pressedNow && !IsPointerOverUI())
-                {
-                    FireSpell();
-                    return;
-                }
+                // คลิกไม่ยิงแล้ว เมาส์เหลือหน้าที่เล็งอย่างเดียว
+                // ไม่งั้นคนที่ขยับเมาส์เล็งอยู่จะเผลอคลิกยิงก่อนตะโกน
+                _ = pressedNow;
             }
 
             DrawAimArrow();
+            PushFireGauge();
 
-            if (WasConfirmPressed()) FireSpell();
+            if (ShouldFire()) FireSpell();
+        }
+
+        /// <summary>
+        /// ถึงเวลายิงหรือยัง
+        ///
+        /// ปกติยิงด้วยการตะโกนให้ดังถึงเกณฑ์ ไม่ใช่กดปุ่ม
+        /// ทำให้ความดังเป็นทั้งตัวสั่งยิงและตัวกำหนดความแรงในจังหวะเดียว
+        ///
+        /// แต่ถ้าเครื่องไม่มีไมค์ ต้องเหลือปุ่มไว้ให้ ไม่งั้นคนที่ไม่มีไมค์
+        /// จะเล็งค้างอยู่อย่างนั้นตลอดกาล เดินก็ไม่ได้ ยิงก็ไม่ได้
+        /// </summary>
+        private bool ShouldFire()
+        {
+            bool hasMic = voicePower != null && voicePower.HasAudioSource;
+
+            if (hasMic && voicePower.CurrentPower >= fireVoiceThreshold) return true;
+
+            if (!hasMic && allowKeyFireWithoutMic && WasConfirmPressed()) return true;
+
+            return false;
+        }
+
+        /// <summary>บอกหลอดเสียงว่าต้องดังแค่ไหนถึงจะยิง ผู้เล่นจะได้เล็งความดังถูก</summary>
+        private void PushFireGauge()
+        {
+            VoiceMeter meter = VoiceMeter.Instance;
+            if (meter == null) return;
+
+            meter.SetThreshold(fireVoiceThreshold, true);
         }
 
         /// <summary>จังหวะยืนยันที่ 2: ยิงจริง ตรงนี้เท่านั้นที่ข้อมูลถูกส่งข้ามเน็ต</summary>
@@ -405,6 +441,9 @@ namespace MagicDrawing
 
         private void ResetToIdle()
         {
+            // ออกจากขั้นเล็งแล้วก็ไม่ต้องโชว์เส้นเกณฑ์อีก
+            if (VoiceMeter.Instance != null) VoiceMeter.Instance.SetThreshold(0f, false);
+
             phase = CastPhase.Idle;
             isPressing = false;
             currentStroke.Clear();

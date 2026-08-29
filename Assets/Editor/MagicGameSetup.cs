@@ -2057,6 +2057,19 @@ public static class MagicGameSetup
         fill.fillOrigin = (int)Image.OriginVertical.Bottom;
         fill.fillAmount = 0f;
 
+        // เส้นบอกว่าต้องตะโกนดังถึงไหนเวทถึงจะออก
+        var marker = new GameObject("Threshold", typeof(Image));
+        marker.transform.SetParent(track.transform, false);
+        marker.GetComponent<Image>().color = Color.white;
+
+        var markerRect = marker.GetComponent<RectTransform>();
+        markerRect.anchorMin = new Vector2(0f, 0.55f);
+        markerRect.anchorMax = new Vector2(1f, 0.55f);
+        markerRect.pivot = new Vector2(0.5f, 0.5f);
+        markerRect.anchoredPosition = Vector2.zero;
+        markerRect.sizeDelta = new Vector2(6f, 3f);
+        marker.SetActive(false);
+
         Text status = CreateText(frame.transform, "Status", "", 13, Color.white);
         Object.DestroyImmediate(status.GetComponent<LayoutElement>());
 
@@ -2072,6 +2085,7 @@ public static class MagicGameSetup
         var so = new SerializedObject(meter);
         so.FindProperty("fill").objectReferenceValue = fill;
         so.FindProperty("statusLabel").objectReferenceValue = status;
+        so.FindProperty("thresholdMarker").objectReferenceValue = markerRect;
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 }
