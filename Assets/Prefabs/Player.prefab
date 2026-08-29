@@ -124,7 +124,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 1088795446
+  GlobalObjectIdHash: 1215423434
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -270,7 +270,7 @@ MonoBehaviour:
   windMinStrokes: 4
   minimumScore: 0.55
   shieldMargin: 0.4
-  fireVoiceThreshold: 0.45
+  fireVoiceThreshold: 0.38
   voiceReleaseLevel: 0.12
   voiceReleaseDelay: 0.25
   allowKeyFireWithoutMic: 1
@@ -319,6 +319,7 @@ MonoBehaviour:
   noiseFloor: 0.007
   fallbackPower: 0.5
   showMeter: 1
+  externalSilenceTimeout: 2
 --- !u!114 &2296942983401034207
 MonoBehaviour:
   m_ObjectHideFlags: 0

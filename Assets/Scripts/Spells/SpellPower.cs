@@ -242,7 +242,14 @@ namespace MagicDrawing
             }
 
             // เสียงมาจากสองทางได้ ไมค์ที่เราเปิดเอง หรือระบบ voice chat ป้อนมาให้
-            float loudness = externalSource ? rawLoudness : ReadLoudness();
+            //
+            // ต้องเช็ค micReady ก่อน ไม่ใช่ externalSource
+            //
+            // เพราะการที่เราเปิดไมค์เองสำเร็จ แปลว่า voice chat เปิดไม่ได้แล้ว
+            // (ไม่งั้นเราจะไม่ถอยมาเปิดเองตั้งแต่แรก) ถ้ายังเช็ค externalSource ก่อน
+            // จะไปอ่านค่าจาก voice chat ที่ไม่เคยส่งอะไรมา ได้ศูนย์ตลอด
+            // ทั้งที่ไมค์ของเราเปิดอยู่และได้ยินเสียงจริง
+            float loudness = micReady ? ReadLoudness() : rawLoudness;
             float target = ToPower(loudness);
 
             // ค่าดิบจากไมค์กระโดดแรงมากทุกเฟรม ต้องหน่วงก่อนไม่งั้นหลอดจะสั่น
