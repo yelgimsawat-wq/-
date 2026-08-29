@@ -71,4 +71,4 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MagicDrawing.MatchManager
   ShowTopMostFoldoutHeaderGroup: 1
-  minPlayersToStart: 2
+  minPlayersToStart: 1

@@ -31,8 +31,10 @@ namespace MagicDrawing
     {
         public static MatchManager Instance { get; private set; }
 
-        [Tooltip("ต้องมีผู้เล่นอย่างน้อยกี่คนถึงจะเริ่มนับแพ้ชนะ")]
-        [SerializeField] private int minPlayersToStart = 2;
+        [Tooltip("ต้องมีผู้เล่นอย่างน้อยกี่คนถึงจะเริ่มนับแพ้ชนะ "
+                 + "ตั้ง 1 = เข้าเกมแล้วเล่นได้เลยไม่ต้องรอเพื่อน "
+                 + "ตั้ง 2 = รอให้ครบสองคนก่อนถึงจะเริ่มนับ")]
+        [SerializeField] private int minPlayersToStart = 1;
 
         private readonly NetworkVariable<MatchState> state = new NetworkVariable<MatchState>(
             MatchState.Waiting,
