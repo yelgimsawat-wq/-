@@ -124,7 +124,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 415312188
+  GlobalObjectIdHash: 1088795446
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -270,7 +270,7 @@ MonoBehaviour:
   windMinStrokes: 4
   minimumScore: 0.55
   shieldMargin: 0.4
-  fireVoiceThreshold: 0.55
+  fireVoiceThreshold: 0.3
   allowKeyFireWithoutMic: 1
   confirmKey: 1
   cancelKey: 60
@@ -310,8 +310,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MagicDrawing.SpellPower
   sensitivity: 12
-  smoothing: 10
-  noiseFloor: 0.015
+  autoCalibrate: 1
+  minLoudSpan: 0.014
+  peakDecayPerSecond: 0.08
+  smoothing: 15
+  noiseFloor: 0.007
   fallbackPower: 0.5
   showMeter: 1
 --- !u!114 &2296942983401034207

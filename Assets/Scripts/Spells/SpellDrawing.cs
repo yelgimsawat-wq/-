@@ -64,7 +64,7 @@ namespace MagicDrawing
         [Header("ยิงด้วยเสียง")]
         [Tooltip("ตอนเล็งอยู่ ต้องตะโกนให้ดังถึงค่านี้เวทถึงจะออก")]
         [Range(0.05f, 1f)]
-        [SerializeField] private float fireVoiceThreshold = 0.55f;
+        [SerializeField] private float fireVoiceThreshold = 0.3f;
 
         [Tooltip("ไม่มีไมค์ให้กดปุ่มยิงแทนได้ ปิดข้อนี้ = ไม่มีไมค์ก็ยิงไม่ได้เลย")]
         [SerializeField] private bool allowKeyFireWithoutMic = true;

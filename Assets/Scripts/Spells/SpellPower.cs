@@ -26,7 +26,7 @@ namespace MagicDrawing
 
         [Tooltip("ความดังต่ำสุดที่ยอมให้ถือว่าเป็นเสียงเต็มหลอด "
                  + "กันไมค์ที่เงียบมากจนหายใจแล้วหลอดเต็ม")]
-        [SerializeField] private float minLoudSpan = 0.035f;
+        [SerializeField] private float minLoudSpan = 0.014f;
 
         [Tooltip("ค่าสูงสุดที่จำไว้จะลดลงกี่ส่วนต่อวินาที "
                  + "ต้องลดบ้างไม่งั้นตะโกนแรงครั้งเดียวแล้วหลอดจะตื้อไปทั้งเกม")]
@@ -36,10 +36,10 @@ namespace MagicDrawing
         private float observedLoudest;
 
         [Tooltip("ความหนืดของหลอด ยิ่งมากยิ่งตอบสนองไว แต่กระตุกกว่า")]
-        [SerializeField] private float smoothing = 10f;
+        [SerializeField] private float smoothing = 15f;
 
         [Tooltip("เสียงต่ำกว่านี้ถือว่าเงียบ กันเสียงลมและเสียงพัดลมคอมพิวเตอร์")]
-        [SerializeField] private float noiseFloor = 0.015f;
+        [SerializeField] private float noiseFloor = 0.007f;
 
         [Tooltip("ใช้เมื่อเครื่องไม่มีไมค์หรือเปิดไม่ได้ เกมจะได้เล่นต่อได้")]
         [Range(0f, 1f)]
