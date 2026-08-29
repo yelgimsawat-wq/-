@@ -41,6 +41,8 @@ public static class MagicGameSetup
     /// <summary>กรอบปุ่มลายมือมีสามแบบ เวียนใช้ให้ปุ่มแต่ละตัวไม่เหมือนกัน</summary>
     private const int SketchButtonVariants = 3;
 
+    private const string SketchPanelTexturePath = ArtFolder + "/SketchPanel.png";
+
     private static string SketchButtonTexturePath(int variant)
     {
         return ArtFolder + "/SketchButton" + (variant + 1) + ".png";
@@ -81,6 +83,8 @@ public static class MagicGameSetup
 
         // เริ่มนับใหม่ทุกครั้งที่ติดตั้ง ปุ่มตัวเดิมจะได้แบบเดิมทุกรอบ
         sketchButtonCursor = 0;
+
+        sketchPanelSprite = CreateSketchPanelSprite();
 
         MagicCircle circlePrefab = CreateMagicCirclePrefab(circleSprite);
         SpellProjectile projectilePrefab = CreateProjectilePrefab(orbSprite);
@@ -314,11 +318,18 @@ public static class MagicGameSetup
 
     private static readonly Color PanelColor = new Color(0.09f, 0.10f, 0.16f, 0.96f);
     private static readonly Color AccentColor = new Color(0.42f, 0.72f, 1f);
-    private static readonly Color TextColor = new Color(0.88f, 0.90f, 0.94f);
+    // ตัวหนังสือบนพื้นขาว ใช้ InkColor แทนของเดิมที่เป็นสีอ่อน
+    private static readonly Color TextColor = new Color(0.20f, 0.22f, 0.28f);
     private static readonly Color ButtonColor = new Color(0.20f, 0.24f, 0.34f);
 
-    // สีส้มของกรอบปุ่มลายมือ ตามแบบที่ผู้ใช้ให้มา
-    private static readonly Color SketchButtonColor = new Color(0.98f, 0.66f, 0.25f);
+    // สีส้มของกรอบลายมือ ตามแบบที่ผู้ใช้ให้มา อบลงในภาพเลยไม่ได้ย้อมทีหลัง
+    private static readonly Color32 SketchLineColor = new Color32(251, 169, 64, 255);
+
+    // พื้นในกรอบเป็นสีขาว ตัวหนังสือจึงต้องเป็นสีเข้มถึงจะอ่านออก
+    private static readonly Color InkColor = new Color(0.20f, 0.22f, 0.28f);
+
+    // สีหัวข้อบนพื้นขาว ใช้ส้มเข้มกว่าเส้นกรอบเล็กน้อยให้อ่านชัด
+    private static readonly Color TitleColor = new Color(0.85f, 0.50f, 0.10f);
 
     /// <summary>
     /// สร้าง Canvas ของเมนูแล้วผูก reference เข้ากับ OnlineUI2D
@@ -349,7 +360,7 @@ public static class MagicGameSetup
         GameObject roomPanel = CreatePanel(canvasGo.transform, "RoomPanel", new Vector2(560f, 620f));
 
         // ---- หน้าเข้าห้อง ----
-        CreateText(joinPanel.transform, "Title", "วงเวทออนไลน์", 46, AccentColor, FontStyle.Bold);
+        CreateText(joinPanel.transform, "Title", "วงเวทออนไลน์", 46, TitleColor, FontStyle.Bold);
         CreateText(joinPanel.transform, "Subtitle",
             "สร้างห้องแล้วส่งรหัสให้เพื่อน หรือใส่รหัสที่ได้รับ", 20, TextColor);
 
@@ -360,11 +371,11 @@ public static class MagicGameSetup
         Button editProfileButton = CreateButton(joinPanel.transform, "EditProfileButton", "แก้ไขตัวละคร");
 
         // ---- หน้าในห้อง ----
-        Text roleText = CreateText(roomPanel.transform, "RoleText", "คุณเป็นเจ้าของห้อง", 26, AccentColor, FontStyle.Bold);
+        Text roleText = CreateText(roomPanel.transform, "RoleText", "คุณเป็นเจ้าของห้อง", 26, TitleColor, FontStyle.Bold);
         CreateText(roomPanel.transform, "CodeCaption", "รหัสห้อง", 20, TextColor);
 
         // รหัสห้องตัวใหญ่พิเศษ เพราะเป็นข้อความที่ต้องอ่านให้เพื่อนฟังทางโทรศัพท์
-        Text roomCodeText = CreateText(roomPanel.transform, "RoomCodeText", "ABCDEF", 52, Color.white, FontStyle.Bold);
+        Text roomCodeText = CreateText(roomPanel.transform, "RoomCodeText", "ABCDEF", 52, TitleColor, FontStyle.Bold);
 
         Button copyButton = CreateButton(roomPanel.transform, "CopyButton", "คัดลอกรหัส");
         Text playersText = CreateText(roomPanel.transform, "PlayersText", "ผู้เล่นในห้อง 1 / 4 คน", 22, TextColor);
@@ -384,7 +395,7 @@ public static class MagicGameSetup
         Button compactLeave = CreateButton(compactPanel.transform, "CompactLeaveButton", "ออกจากห้อง");
 
         // ---- แถบสถานะล่างจอ ----
-        Text statusText = CreateText(canvasGo.transform, "StatusText", "", 22, TextColor);
+        Text statusText = CreateText(canvasGo.transform, "StatusText", "", 22, Color.white);
         var statusRect = statusText.GetComponent<RectTransform>();
         statusRect.anchorMin = new Vector2(0.5f, 0f);
         statusRect.anchorMax = new Vector2(0.5f, 0f);
@@ -465,7 +476,7 @@ public static class MagicGameSetup
         // จัดเป็นสองคอลัมน์: ควบคุมอยู่ซ้าย กระดานวาดอยู่ขวา
         // แยกกันแล้วกระดานได้พื้นที่เต็มความสูงของการ์ด วาดง่ายขึ้นมาก
         // และเหลือที่พอให้โชว์ตัวอย่างว่าในเกมจะออกมาหน้าตาแบบไหน
-        GameObject panel = CreatePanel(canvas, "ProfilePanel", new Vector2(1280f, 900f));
+        GameObject panel = CreatePanel(canvas, "ProfilePanel", new Vector2(1280f, 900f), autoHeight: false);
         MakeHorizontal(panel, 24f);
 
         GameObject left = CreateColumn(panel.transform, "LeftColumn", 460f, 0f);
@@ -473,7 +484,7 @@ public static class MagicGameSetup
 
         // ---------- คอลัมน์ซ้าย: ชื่อ ตัวอย่าง ปุ่ม ----------
 
-        CreateText(left.transform, "Title", "ตั้งค่าตัวละคร", 38, AccentColor, FontStyle.Bold);
+        CreateText(left.transform, "Title", "ตั้งค่าตัวละคร", 38, TitleColor, FontStyle.Bold);
         CreateText(left.transform, "NameCaption", "ชื่อของคุณ", 20, TextColor);
 
         InputField nameInput = CreateInput(left.transform, "NameInput", "ใส่ชื่อ");
@@ -648,12 +659,25 @@ public static class MagicGameSetup
     /// การ์ดกลางจอ ใช้ VerticalLayoutGroup เรียงของข้างในให้อัตโนมัติ
     /// จะได้ไม่ต้องมานั่งคำนวณตำแหน่งทีละชิ้น และเพิ่ม/ลบชิ้นได้โดยไม่ต้องขยับของอื่น
     /// </summary>
-    private static GameObject CreatePanel(Transform parent, string name, Vector2 size)
+    private static GameObject CreatePanel(Transform parent, string name, Vector2 size, bool autoHeight = true)
     {
         var go = new GameObject(name, typeof(Image), typeof(VerticalLayoutGroup));
         go.transform.SetParent(parent, false);
 
-        go.GetComponent<Image>().color = PanelColor;
+        var background = go.GetComponent<Image>();
+        Sprite panelFrame = SketchPanelSprite;
+
+        if (panelFrame != null)
+        {
+            background.sprite = panelFrame;
+            background.type = Image.Type.Sliced;
+            // ภาพอบสีมาแล้วทั้งพื้นขาวและเส้นส้ม จึงไม่ย้อมทับ
+            background.color = Color.white;
+        }
+        else
+        {
+            background.color = PanelColor;
+        }
 
         var rect = go.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -670,6 +694,14 @@ public static class MagicGameSetup
         layout.childForceExpandHeight = false;
         layout.childControlWidth = true;
         layout.childControlHeight = false;
+
+        if (autoHeight)
+        {
+            // ให้การ์ดสูงตามเนื้อหาจริง ไม่ใช่ตั้งความสูงตายตัวไว้
+            // ถ้าตั้งตายตัวแล้วเพิ่มปุ่มทีหลัง ของจะล้นออกนอกกรอบโดยไม่มีอะไรเตือน
+            var fitter = go.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        }
 
         return go;
     }
@@ -735,7 +767,8 @@ public static class MagicGameSetup
             image.sprite = frame;
             // 9-slice ทำให้ปุ่มยืดหดได้ทุกขนาดโดยมุมไม่บิด
             image.type = Image.Type.Sliced;
-            image.color = SketchButtonColor;
+            // ภาพอบสีมาแล้วทั้งพื้นขาวและเส้นส้ม จึงไม่ย้อมทับ
+            image.color = Color.white;
         }
         else
         {
@@ -758,7 +791,7 @@ public static class MagicGameSetup
         element.minHeight = 56f;
         element.preferredHeight = 56f;
 
-        Text text = CreateText(go.transform, "Label", label, 22, Color.white);
+        Text text = CreateText(go.transform, "Label", label, 22, InkColor);
         StretchToParent(text.GetComponent<RectTransform>());
         Object.DestroyImmediate(text.GetComponent<LayoutElement>());
 
@@ -1490,6 +1523,19 @@ public static class MagicGameSetup
 
     private static Sprite[] sketchButtonSprites;
     private static int sketchButtonCursor;
+    private static Sprite sketchPanelSprite;
+
+    /// <summary>กรอบการ์ดลายมือ ใช้ใบเดียวกันทุกการ์ด</summary>
+    private static Sprite SketchPanelSprite
+    {
+        get
+        {
+            if (sketchPanelSprite == null)
+                sketchPanelSprite = AssetDatabase.LoadAssetAtPath<Sprite>(SketchPanelTexturePath);
+
+            return sketchPanelSprite;
+        }
+    }
 
     /// <summary>
     /// หยิบกรอบปุ่มแบบถัดไป เวียนไปเรื่อย ๆ
@@ -1527,14 +1573,6 @@ public static class MagicGameSetup
     /// </summary>
     private static Sprite CreateSketchButtonSprite(int variant)
     {
-        const int width = 256;
-        const int height = 96;
-        const float cornerRadius = 34f;
-        const float lineRadius = 2.2f;
-        const int border = 44;
-
-        var pixels = new Color32[width * height];
-        for (int i = 0; i < pixels.Length; i++) pixels[i] = new Color32(255, 255, 255, 0);
 
         // แต่ละแบบใช้ระยะห่างระหว่างสองเส้น ความสั่น และจังหวะคลื่นต่างกัน
         // ผลคือกรอบสามแบบที่ดูเป็นลายมือคนเดียวกัน แต่ไม่ใช่อันเดียวกัน
@@ -1547,16 +1585,57 @@ public static class MagicGameSetup
 
         int v = Mathf.Clamp(variant, 0, SketchButtonVariants - 1);
 
+        return BakeSketchFrame(
+            SketchButtonTexturePath(variant),
+            256, 96, 34f, 44, 2.2f,
+            innerInset[v], outerInset[v],
+            innerWobble[v], outerWobble[v],
+            innerPhase[v], outerPhase[v]);
+    }
+
+    /// <summary>
+    /// กรอบการ์ดลายมือ สูงกว่าปุ่มมาก จึงต้องใช้ภาพคนละใบ
+    /// ถ้ายืดภาพปุ่มมาใช้ ความสั่นของเส้นจะถูกยืดจนดูเป็นคลื่นยาว ๆ ไม่เหมือนลายมือ
+    /// </summary>
+    private static Sprite CreateSketchPanelSprite()
+    {
+        return BakeSketchFrame(
+            SketchPanelTexturePath,
+            256, 320, 42f, 58, 2.6f,
+            6.0f, 10.0f,
+            2.6f, 2.0f,
+            1.9f, 4.7f);
+    }
+
+    /// <summary>
+    /// อบกรอบลายมือหนึ่งใบ พื้นในเป็นสีขาวทึบ ขอบเป็นเส้นส้มลากสองรอบ
+    ///
+    /// อบสีลงในภาพเลยแทนการวาดขาวล้วนแล้วย้อมทีหลัง เพราะพื้นกับเส้นต้องคนละสี
+    /// ถ้าย้อมทั้งใบจะได้สีเดียวกันหมด
+    /// </summary>
+    private static Sprite BakeSketchFrame(
+        string path, int width, int height, float cornerRadius, int border, float lineRadius,
+        float innerInset, float outerInset,
+        float innerWobble, float outerWobble,
+        float innerPhase, float outerPhase)
+    {
+        var pixels = new Color32[width * height];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = new Color32(0, 0, 0, 0);
+
+        // เติมพื้นขาวก่อน แล้วค่อยลากเส้นทับ ลำดับสลับกันไม่ได้
+        // ไม่งั้นพื้นจะกลบเส้นที่ลากไว้
+        FillRoundedRect(pixels, width, height, cornerRadius, innerInset + 1f,
+            new Color32(255, 255, 255, 255));
+
         DrawWobblyRoundedRect(pixels, width, height, cornerRadius,
-            innerInset[v], lineRadius, innerWobble[v], innerPhase[v]);
+            innerInset, lineRadius, innerWobble, innerPhase);
         DrawWobblyRoundedRect(pixels, width, height, cornerRadius,
-            outerInset[v], lineRadius, outerWobble[v], outerPhase[v]);
+            outerInset, lineRadius, outerWobble, outerPhase);
 
         var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
         texture.SetPixels32(pixels);
         texture.Apply();
 
-        string path = SketchButtonTexturePath(variant);
         File.WriteAllBytes(path, texture.EncodeToPNG());
         Object.DestroyImmediate(texture);
 
@@ -1567,11 +1646,46 @@ public static class MagicGameSetup
         importer.spriteImportMode = SpriteImportMode.Single;
         importer.alphaIsTransparency = true;
         importer.mipmapEnabled = false;
-        // ขอบ 9-slice กว้างกว่ารัศมีมุมเล็กน้อย มุมจึงไม่โดนยืด
+        // ขอบ 9-slice กว้างกว่ารัศมีมุม มุมจึงไม่โดนยืด
         importer.spriteBorder = new Vector4(border, border, border, border);
         importer.SaveAndReimport();
 
         return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+    }
+
+    /// <summary>
+    /// เติมสี่เหลี่ยมมุมมนทึบ ใช้เป็นพื้นหลังใต้กรอบลายมือ
+    ///
+    /// วัดระยะจากขอบรูปด้วยสูตรระยะทางแทนการไล่เช็คทีละด้าน
+    /// ได้ขอบที่เนียนโดยไม่ต้องแยกกรณีมุมกับด้านตรง
+    /// </summary>
+    private static void FillRoundedRect(
+        Color32[] pixels, int width, int height, float cornerRadius, float inset, Color32 color)
+    {
+        float halfWidth = width * 0.5f - inset;
+        float halfHeight = height * 0.5f - inset;
+        float radius = Mathf.Min(cornerRadius, Mathf.Min(halfWidth, halfHeight));
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                float dx = Mathf.Abs(x + 0.5f - width * 0.5f) - (halfWidth - radius);
+                float dy = Mathf.Abs(y + 0.5f - height * 0.5f) - (halfHeight - radius);
+
+                float outsideX = Mathf.Max(dx, 0f);
+                float outsideY = Mathf.Max(dy, 0f);
+                float distance = Mathf.Min(Mathf.Max(dx, dy), 0f)
+                    + Mathf.Sqrt(outsideX * outsideX + outsideY * outsideY)
+                    - radius;
+
+                // ไล่ขอบหนึ่งพิกเซล ให้ไม่เป็นบันได
+                float alpha = Mathf.Clamp01(0.5f - distance);
+                if (alpha <= 0f) continue;
+
+                pixels[y * width + x] = new Color32(color.r, color.g, color.b, (byte)(alpha * 255f));
+            }
+        }
     }
 
     /// <summary>
@@ -1608,12 +1722,11 @@ public static class MagicGameSetup
             points[i] = point + normal * offset;
         }
 
-        var white = new Color32(255, 255, 255, 255);
         for (int i = 0; i < steps; i++)
         {
             Vector2 a = points[i];
             Vector2 b = points[(i + 1) % steps];
-            StampLine(pixels, width, height, a, b, lineRadius, white);
+            StampLine(pixels, width, height, a, b, lineRadius, SketchLineColor);
         }
     }
 
@@ -1730,10 +1843,32 @@ public static class MagicGameSetup
                     if (d > radius) continue;
 
                     byte alpha = (byte)(Mathf.Clamp01(radius - d) * 255f);
-                    int index = y * width + x;
+                    if (alpha == 0) continue;
 
-                    // เอาค่าที่เข้มกว่า ไม่งั้นจุดที่วงกลมซ้อนกันจะทึบขึ้นเรื่อย ๆ
-                    if (alpha > pixels[index].a) pixels[index] = new Color32(color.r, color.g, color.b, alpha);
+                    int index = y * width + x;
+                    Color32 dst = pixels[index];
+
+                    if (dst.a == 0)
+                    {
+                        // ยังว่างอยู่ ทับได้เลย
+                        pixels[index] = new Color32(color.r, color.g, color.b, alpha);
+                        continue;
+                    }
+
+                    // มีของอยู่แล้ว ต้องผสมสี ไม่ใช่เลือกค่าที่ทึบกว่าแบบเดิม
+                    //
+                    // กฎเดิมใช้ได้ตอนที่ทั้งภาพมีสีเดียว แต่ตอนนี้มีพื้นขาวรองอยู่
+                    // เส้นส้มที่ทึบเท่ากันจะทับพื้นขาวไม่ได้เลย กรอบจะหายไปทั้งเส้น
+                    //
+                    // ความทึบยังใช้ค่าที่มากกว่า ขอบเส้นจึงยังเนียนเหมือนเดิม
+                    float srcA = alpha / 255f;
+                    float invA = 1f - srcA;
+
+                    pixels[index] = new Color32(
+                        (byte)(color.r * srcA + dst.r * invA),
+                        (byte)(color.g * srcA + dst.g * invA),
+                        (byte)(color.b * srcA + dst.b * invA),
+                        alpha > dst.a ? alpha : dst.a);
                 }
             }
         }
