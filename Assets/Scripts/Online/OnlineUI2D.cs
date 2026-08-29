@@ -339,40 +339,15 @@ public class OnlineUI2D : MonoBehaviour
     /// หาฟอนต์ที่มีอักขระไทยจากระบบมาใส่ให้ทุกข้อความ
     ///
     /// จำเป็นเพราะฟอนต์เริ่มต้นของ uGUI ไม่มีอักขระไทย ตัวหนังสือจะกลายเป็น
-    /// สี่เหลี่ยมเปล่าทั้งจอ และเราไม่ได้ใส่ไฟล์ฟอนต์มาในโปรเจกต์
-    /// (ฟอนต์ของ Windows มีข้อจำกัดเรื่องการแจกจ่ายต่อ จึงไม่ควร commit ลง repo)
+    /// สี่เหลี่ยมเปล่าทั้งจอ
     ///
-    /// ถ้าจะปล่อยเกมจริงควรหาฟอนต์ไทยที่เปิดให้ใช้ได้อย่าง Sarabun หรือ
-    /// Noto Sans Thai มาใส่ในโปรเจกต์แทน จะได้ไม่ต้องพึ่งฟอนต์ของเครื่องผู้เล่น
+    /// ตัวเลือกฟอนต์อยู่ที่ GameFont ที่เดียว ตรงนี้แค่เอาไปแปะให้ทุกข้อความ
+    /// เผื่อบางตัวถูกสร้างตอนรันโดยยังไม่ได้ตั้งฟอนต์
     /// </summary>
     private void ApplyThaiFont()
     {
-        // ไล่จากตัวที่หน้าตาดีที่สุดไปตัวที่มีในเครื่องแน่นอนที่สุด
-        string[] candidates =
-        {
-            "Leelawadee UI", "Leelawadee", "Tahoma", "Arial Unicode MS", "Noto Sans Thai", "Sarabun",
-        };
-
-        Font font = null;
-        foreach (string name in candidates)
-        {
-            try
-            {
-                font = Font.CreateDynamicFontFromOSFont(name, 24);
-            }
-            catch (Exception)
-            {
-                font = null;
-            }
-
-            if (font != null) break;
-        }
-
-        if (font == null)
-        {
-            Debug.LogWarning("[OnlineUI2D] หาฟอนต์ไทยในเครื่องไม่เจอ ตัวหนังสืออาจขึ้นเป็นสี่เหลี่ยมเปล่า");
-            return;
-        }
+        Font font = MagicDrawing.GameFont.Load();
+        if (font == null) return;
 
         foreach (Text text in GetComponentsInChildren<Text>(true))
             if (text != null) text.font = font;

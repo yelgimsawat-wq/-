@@ -656,6 +656,23 @@ public static class MagicGameSetup
         return go;
     }
 
+    private static Font editorFont;
+
+    /// <summary>
+    /// ฟอนต์ที่ใส่ให้ข้อความทุกตัวตอนสร้าง
+    /// อ้างที่อยู่จาก GameFont ที่เดียว ย้ายไฟล์ฟอนต์แล้วแก้จุดเดียวจบ
+    /// </summary>
+    private static Font EditorFont
+    {
+        get
+        {
+            if (editorFont == null)
+                editorFont = AssetDatabase.LoadAssetAtPath<Font>(MagicDrawing.GameFont.AssetPath);
+
+            return editorFont;
+        }
+    }
+
     private static Text CreateText(
         Transform parent, string name, string content, int fontSize, Color color,
         FontStyle style = FontStyle.Normal)
@@ -672,8 +689,11 @@ public static class MagicGameSetup
         text.horizontalOverflow = HorizontalWrapMode.Wrap;
         text.verticalOverflow = VerticalWrapMode.Overflow;
 
-        // ฟอนต์ตั้งตอนรันไทม์โดย OnlineUI2D เพราะต้องหาฟอนต์ที่มีอักขระไทย
-        // จากเครื่องผู้เล่น ฟอนต์เริ่มต้นของ uGUI ไม่มีภาษาไทย
+        // ใส่ฟอนต์ตั้งแต่ตอนสร้าง จะได้เห็นตัวหนังสือถูกต้องใน Scene view
+        // ไม่ต้องกด Play ก่อนถึงจะรู้ว่าจัดวางพอดีไหม
+        // (ตอนรัน OnlineUI2D ยังแปะซ้ำให้อีกที เผื่อข้อความที่สร้างทีหลัง)
+        Font font = EditorFont;
+        if (font != null) text.font = font;
 
         go.GetComponent<RectTransform>().sizeDelta = new Vector2(0f, fontSize + 14f);
 
