@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: f4c5fea1e72a70a45a0916faccde9406
+guid: 20ec80926af8dc149a8cd058f818590a
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 1187298518488878
-    second: SketchButton_0
+      213: -6672940490664611329
+    second: SketchButton3_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -126,13 +126,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: SketchButton_0
+      name: SketchButton3_0
       rect:
         serializedVersion: 2
-        x: 0
+        x: 4
         y: 0
-        width: 253
-        height: 96
+        width: 249
+        height: 95
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -141,8 +141,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: e27df6a77d7340000800000000000000
-      internalID: 1187298518488878
+      spriteID: ff17d9e7af3f463a0800000000000000
+      internalID: -6672940490664611329
       vertices: []
       indices: 
       edges: []
@@ -161,7 +161,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      SketchButton_0: 1187298518488878
+      SketchButton3_0: -6672940490664611329
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

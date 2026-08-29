@@ -38,7 +38,13 @@ public static class MagicGameSetup
     private const string SquareTexturePath = ArtFolder + "/WhiteSquare.png";
     private const string OrbTexturePath = ArtFolder + "/SpellOrb.png";
     private const string CapsuleTexturePath = ArtFolder + "/PlayerCapsule.png";
-    private const string SketchButtonTexturePath = ArtFolder + "/SketchButton.png";
+    /// <summary>กรอบปุ่มลายมือมีสามแบบ เวียนใช้ให้ปุ่มแต่ละตัวไม่เหมือนกัน</summary>
+    private const int SketchButtonVariants = 3;
+
+    private static string SketchButtonTexturePath(int variant)
+    {
+        return ArtFolder + "/SketchButton" + (variant + 1) + ".png";
+    }
 
     // ขนาดตัวละครเป็นหน่วยโลก ใช้ร่วมกันทั้งภาพและ collider จะได้ตรงกันเป๊ะ
     private const float PlayerWidth = 1f;
@@ -68,8 +74,13 @@ public static class MagicGameSetup
         Sprite orbSprite = CreateOrbSprite();
         Sprite capsuleSprite = CreateCapsuleSprite();
 
-        // ต้องสร้างก่อนสร้าง UI เพราะปุ่มทุกตัวจะไปหยิบภาพนี้มาใช้
-        sketchButtonSprite = CreateSketchButtonSprite();
+        // ต้องสร้างก่อนสร้าง UI เพราะปุ่มทุกตัวจะไปหยิบภาพพวกนี้มาใช้
+        sketchButtonSprites = new Sprite[SketchButtonVariants];
+        for (int i = 0; i < SketchButtonVariants; i++)
+            sketchButtonSprites[i] = CreateSketchButtonSprite(i);
+
+        // เริ่มนับใหม่ทุกครั้งที่ติดตั้ง ปุ่มตัวเดิมจะได้แบบเดิมทุกรอบ
+        sketchButtonCursor = 0;
 
         MagicCircle circlePrefab = CreateMagicCirclePrefab(circleSprite);
         SpellProjectile projectilePrefab = CreateProjectilePrefab(orbSprite);
@@ -718,7 +729,7 @@ public static class MagicGameSetup
 
         var image = go.GetComponent<Image>();
 
-        Sprite frame = SketchButtonSprite;
+        Sprite frame = NextSketchButtonSprite();
         if (frame != null)
         {
             image.sprite = frame;
@@ -1477,18 +1488,30 @@ public static class MagicGameSetup
             property.GetArrayElementAtIndex(i).colorValue = values[i];
     }
 
-    private static Sprite sketchButtonSprite;
+    private static Sprite[] sketchButtonSprites;
+    private static int sketchButtonCursor;
 
-    /// <summary>กรอบปุ่มลายมือ สร้างครั้งเดียวต่อการติดตั้งหนึ่งรอบ</summary>
-    private static Sprite SketchButtonSprite
+    /// <summary>
+    /// หยิบกรอบปุ่มแบบถัดไป เวียนไปเรื่อย ๆ
+    /// ปุ่มที่อยู่ติดกันจึงไม่ซ้ำแบบกัน ดูเหมือนวาดทีละอันจริง ๆ
+    /// </summary>
+    private static Sprite NextSketchButtonSprite()
     {
-        get
+        if (sketchButtonSprites == null)
         {
-            if (sketchButtonSprite == null)
-                sketchButtonSprite = AssetDatabase.LoadAssetAtPath<Sprite>(SketchButtonTexturePath);
-
-            return sketchButtonSprite;
+            sketchButtonSprites = new Sprite[SketchButtonVariants];
+            for (int i = 0; i < SketchButtonVariants; i++)
+                sketchButtonSprites[i] = AssetDatabase.LoadAssetAtPath<Sprite>(SketchButtonTexturePath(i));
         }
+
+        for (int attempt = 0; attempt < SketchButtonVariants; attempt++)
+        {
+            Sprite candidate = sketchButtonSprites[sketchButtonCursor % SketchButtonVariants];
+            sketchButtonCursor++;
+            if (candidate != null) return candidate;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -1502,7 +1525,7 @@ public static class MagicGameSetup
     /// 9-slice ทำให้ปุ่มยืดหดได้ทุกขนาดโดยมุมไม่บิด ตรงกลางจะยืดตามความกว้าง
     /// ความสั่นของเส้นตรงกลางจึงถูกยืดตามไปด้วย ซึ่งยอมรับได้สำหรับสไตล์ลายมือ
     /// </summary>
-    private static Sprite CreateSketchButtonSprite()
+    private static Sprite CreateSketchButtonSprite(int variant)
     {
         const int width = 256;
         const int height = 96;
@@ -1513,20 +1536,33 @@ public static class MagicGameSetup
         var pixels = new Color32[width * height];
         for (int i = 0; i < pixels.Length; i++) pixels[i] = new Color32(255, 255, 255, 0);
 
-        // สองรอบ ระยะห่างและจังหวะสั่นต่างกัน ให้ดูเหมือนคนลากซ้ำสองที
-        DrawWobblyRoundedRect(pixels, width, height, cornerRadius, 5.5f, lineRadius, 2.4f, 0.7f);
-        DrawWobblyRoundedRect(pixels, width, height, cornerRadius, 8.5f, lineRadius, 1.8f, 3.9f);
+        // แต่ละแบบใช้ระยะห่างระหว่างสองเส้น ความสั่น และจังหวะคลื่นต่างกัน
+        // ผลคือกรอบสามแบบที่ดูเป็นลายมือคนเดียวกัน แต่ไม่ใช่อันเดียวกัน
+        float[] innerInset = { 5.5f, 5.0f, 6.5f };
+        float[] outerInset = { 8.5f, 10.0f, 9.0f };
+        float[] innerWobble = { 2.4f, 1.9f, 2.8f };
+        float[] outerWobble = { 1.8f, 2.6f, 2.1f };
+        float[] innerPhase = { 0.7f, 2.3f, 4.6f };
+        float[] outerPhase = { 3.9f, 5.1f, 1.4f };
+
+        int v = Mathf.Clamp(variant, 0, SketchButtonVariants - 1);
+
+        DrawWobblyRoundedRect(pixels, width, height, cornerRadius,
+            innerInset[v], lineRadius, innerWobble[v], innerPhase[v]);
+        DrawWobblyRoundedRect(pixels, width, height, cornerRadius,
+            outerInset[v], lineRadius, outerWobble[v], outerPhase[v]);
 
         var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
         texture.SetPixels32(pixels);
         texture.Apply();
 
-        File.WriteAllBytes(SketchButtonTexturePath, texture.EncodeToPNG());
+        string path = SketchButtonTexturePath(variant);
+        File.WriteAllBytes(path, texture.EncodeToPNG());
         Object.DestroyImmediate(texture);
 
-        AssetDatabase.ImportAsset(SketchButtonTexturePath, ImportAssetOptions.ForceUpdate);
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
 
-        var importer = (TextureImporter)AssetImporter.GetAtPath(SketchButtonTexturePath);
+        var importer = (TextureImporter)AssetImporter.GetAtPath(path);
         importer.textureType = TextureImporterType.Sprite;
         importer.spriteImportMode = SpriteImportMode.Single;
         importer.alphaIsTransparency = true;
@@ -1535,7 +1571,7 @@ public static class MagicGameSetup
         importer.spriteBorder = new Vector4(border, border, border, border);
         importer.SaveAndReimport();
 
-        return AssetDatabase.LoadAssetAtPath<Sprite>(SketchButtonTexturePath);
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
     }
 
     /// <summary>
