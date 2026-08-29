@@ -86,18 +86,23 @@ namespace MagicDrawing
 
             RefreshAliveCount();
 
+            List<PlayerHealth> alive = GetAlivePlayers();
+
             // ยังไม่ได้เริ่มนับรอบ เช่นซ้อมคนเดียวหรือรอเพื่อนเข้ามา
             //
-            // ตรงนี้เคยแค่ return เฉย ๆ ซึ่งทำให้คนที่ตายติดค้างอยู่ในสถานะตกรอบถาวร
-            // เพราะการปลุกกลับมาเกิดตอนจบรอบเท่านั้น แต่รอบไม่มีวันจบเมื่อยังไม่ได้เริ่ม
-            // ผลคือตายครั้งเดียวแล้วเล่นต่อไม่ได้เลย ต้องออกห้องแล้วเข้าใหม่
+            // ปกติไม่ต้องตัดสินอะไร แต่ถ้าไม่เหลือใครเลยต้องปิดรอบให้จบ
+            // ไม่งั้นคนที่ตายจะติดค้างในสถานะตกรอบถาวร เพราะการปลุกกลับมา
+            // เกิดตอนจบรอบเท่านั้น แต่รอบจะจบได้ก็ต้องเริ่มก่อน
+            // และรอบเริ่มได้ก็ต้องมีคนครบ เล่นคนเดียวจึงวนไม่ออก
+            //
+            // ไม่ปลุกกลับกลางคัน เพราะกติกาคือตายแล้วดูได้อย่างเดียว
+            // ต้องรอจบรอบแล้วเริ่มใหม่พร้อมกันทุกคน
             if (state.Value != MatchState.Playing)
             {
-                StartCoroutine(ReviveAfterDelay(victim));
+                if (alive.Count == 0) EndRound(NoWinner);
                 return;
             }
 
-            List<PlayerHealth> alive = GetAlivePlayers();
             if (alive.Count > 1) return;
 
             ulong winner = alive.Count == 1 ? alive[0].OwnerClientId : NoWinner;
@@ -124,22 +129,6 @@ namespace MagicDrawing
             winnerClientId.Value = winner;
 
             StartCoroutine(RestartAfterDelay());
-        }
-
-        /// <summary>
-        /// ปลุกคนที่ตายกลับมาเล่นต่อ ใช้ตอนที่ยังไม่ได้เริ่มนับรอบ
-        /// จะได้ซ้อมยิงเวทคนเดียวได้โดยไม่ต้องออกห้องแล้วเข้าใหม่ทุกครั้งที่ตาย
-        /// </summary>
-        private IEnumerator ReviveAfterDelay(PlayerHealth victim)
-        {
-            yield return new WaitForSeconds(restartDelay);
-
-            // ระหว่างรอ อาจมีเพื่อนเข้ามาจนรอบเริ่มไปแล้ว
-            // ถ้าเป็นแบบนั้นให้ปล่อยไปตามกติกาปกติ ไม่ปลุกกลางรอบ
-            if (state.Value == MatchState.Playing) yield break;
-
-            if (victim != null) victim.ReviveServer();
-            RefreshAliveCount();
         }
 
         private IEnumerator RestartAfterDelay()
