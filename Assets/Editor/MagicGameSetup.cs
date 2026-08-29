@@ -38,6 +38,7 @@ public static class MagicGameSetup
     private const string SquareTexturePath = ArtFolder + "/WhiteSquare.png";
     private const string OrbTexturePath = ArtFolder + "/SpellOrb.png";
     private const string CapsuleTexturePath = ArtFolder + "/PlayerCapsule.png";
+    private const string SketchButtonTexturePath = ArtFolder + "/SketchButton.png";
 
     // ขนาดตัวละครเป็นหน่วยโลก ใช้ร่วมกันทั้งภาพและ collider จะได้ตรงกันเป๊ะ
     private const float PlayerWidth = 1f;
@@ -66,6 +67,9 @@ public static class MagicGameSetup
         Sprite squareSprite = CreateSquareSprite();
         Sprite orbSprite = CreateOrbSprite();
         Sprite capsuleSprite = CreateCapsuleSprite();
+
+        // ต้องสร้างก่อนสร้าง UI เพราะปุ่มทุกตัวจะไปหยิบภาพนี้มาใช้
+        sketchButtonSprite = CreateSketchButtonSprite();
 
         MagicCircle circlePrefab = CreateMagicCirclePrefab(circleSprite);
         SpellProjectile projectilePrefab = CreateProjectilePrefab(orbSprite);
@@ -301,6 +305,9 @@ public static class MagicGameSetup
     private static readonly Color AccentColor = new Color(0.42f, 0.72f, 1f);
     private static readonly Color TextColor = new Color(0.88f, 0.90f, 0.94f);
     private static readonly Color ButtonColor = new Color(0.20f, 0.24f, 0.34f);
+
+    // สีส้มของกรอบปุ่มลายมือ ตามแบบที่ผู้ใช้ให้มา
+    private static readonly Color SketchButtonColor = new Color(0.98f, 0.66f, 0.25f);
 
     /// <summary>
     /// สร้าง Canvas ของเมนูแล้วผูก reference เข้ากับ OnlineUI2D
@@ -710,7 +717,20 @@ public static class MagicGameSetup
         go.transform.SetParent(parent, false);
 
         var image = go.GetComponent<Image>();
-        image.color = ButtonColor;
+
+        Sprite frame = SketchButtonSprite;
+        if (frame != null)
+        {
+            image.sprite = frame;
+            // 9-slice ทำให้ปุ่มยืดหดได้ทุกขนาดโดยมุมไม่บิด
+            image.type = Image.Type.Sliced;
+            image.color = SketchButtonColor;
+        }
+        else
+        {
+            // หาไฟล์ภาพไม่เจอ ยังต้องเห็นปุ่มอยู่ ไม่ใช่กรอบใส ๆ ที่กดไม่ถูก
+            image.color = ButtonColor;
+        }
 
         var button = go.GetComponent<Button>();
         button.targetGraphic = image;
@@ -1455,5 +1475,231 @@ public static class MagicGameSetup
         property.arraySize = values.Length;
         for (int i = 0; i < values.Length; i++)
             property.GetArrayElementAtIndex(i).colorValue = values[i];
+    }
+
+    private static Sprite sketchButtonSprite;
+
+    /// <summary>กรอบปุ่มลายมือ สร้างครั้งเดียวต่อการติดตั้งหนึ่งรอบ</summary>
+    private static Sprite SketchButtonSprite
+    {
+        get
+        {
+            if (sketchButtonSprite == null)
+                sketchButtonSprite = AssetDatabase.LoadAssetAtPath<Sprite>(SketchButtonTexturePath);
+
+            return sketchButtonSprite;
+        }
+    }
+
+    /// <summary>
+    /// กรอบปุ่มลายมือ เส้นสั่น ๆ สองรอบทับกัน เข้ากับฟอนต์ Itim ที่เป็นลายมือ
+    ///
+    /// วาดด้วยโค้ดแทนการใช้ไฟล์ภาพ เพราะ
+    /// 1. ปรับความหนา ความสั่น และขนาดมุมได้ที่เดียวโดยไม่ต้องวาดใหม่
+    /// 2. วาดเป็นสีขาวล้วน จึงย้อมเป็นสีอะไรก็ได้ตอนใช้งาน
+    /// 3. ตั้งขอบ 9-slice ให้พอดีกับมุมได้เป๊ะ เพราะเรารู้รัศมีมุมอยู่แล้ว
+    ///
+    /// 9-slice ทำให้ปุ่มยืดหดได้ทุกขนาดโดยมุมไม่บิด ตรงกลางจะยืดตามความกว้าง
+    /// ความสั่นของเส้นตรงกลางจึงถูกยืดตามไปด้วย ซึ่งยอมรับได้สำหรับสไตล์ลายมือ
+    /// </summary>
+    private static Sprite CreateSketchButtonSprite()
+    {
+        const int width = 256;
+        const int height = 96;
+        const float cornerRadius = 34f;
+        const float lineRadius = 2.2f;
+        const int border = 44;
+
+        var pixels = new Color32[width * height];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = new Color32(255, 255, 255, 0);
+
+        // สองรอบ ระยะห่างและจังหวะสั่นต่างกัน ให้ดูเหมือนคนลากซ้ำสองที
+        DrawWobblyRoundedRect(pixels, width, height, cornerRadius, 5.5f, lineRadius, 2.4f, 0.7f);
+        DrawWobblyRoundedRect(pixels, width, height, cornerRadius, 8.5f, lineRadius, 1.8f, 3.9f);
+
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        texture.SetPixels32(pixels);
+        texture.Apply();
+
+        File.WriteAllBytes(SketchButtonTexturePath, texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+
+        AssetDatabase.ImportAsset(SketchButtonTexturePath, ImportAssetOptions.ForceUpdate);
+
+        var importer = (TextureImporter)AssetImporter.GetAtPath(SketchButtonTexturePath);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.alphaIsTransparency = true;
+        importer.mipmapEnabled = false;
+        // ขอบ 9-slice กว้างกว่ารัศมีมุมเล็กน้อย มุมจึงไม่โดนยืด
+        importer.spriteBorder = new Vector4(border, border, border, border);
+        importer.SaveAndReimport();
+
+        return AssetDatabase.LoadAssetAtPath<Sprite>(SketchButtonTexturePath);
+    }
+
+    /// <summary>
+    /// วาดกรอบมนหนึ่งรอบ โดยเลื่อนแต่ละจุดเข้าออกตามคลื่นเพื่อให้เส้นดูสั่นแบบลายมือ
+    ///
+    /// ใช้ผลรวมของคลื่นสองความถี่ที่เป็นจำนวนเต็มรอบ เส้นจึงบรรจบกันพอดี
+    /// ถ้าใช้ค่าสุ่มธรรมดา จุดเริ่มกับจุดจบจะไม่ตรงกันแล้วเห็นเป็นรอยต่อ
+    /// </summary>
+    private static void DrawWobblyRoundedRect(
+        Color32[] pixels, int width, int height,
+        float cornerRadius, float inset, float lineRadius,
+        float wobble, float phase)
+    {
+        float left = inset;
+        float right = width - inset;
+        float bottom = inset;
+        float top = height - inset;
+
+        float radius = Mathf.Min(cornerRadius, Mathf.Min(right - left, top - bottom) * 0.5f);
+
+        const int steps = 360;
+        var points = new Vector2[steps];
+
+        for (int i = 0; i < steps; i++)
+        {
+            float t = (float)i / steps;
+            Vector2 point = RoundedRectPoint(left, right, bottom, top, radius, t, out Vector2 normal);
+
+            // สองความถี่ทำให้ดูเป็นธรรมชาติกว่าคลื่นเดียว ไม่เป็นระเบียบเกินไป
+            float offset =
+                Mathf.Sin(t * Mathf.PI * 2f * 3f + phase) * wobble +
+                Mathf.Sin(t * Mathf.PI * 2f * 7f + phase * 1.7f) * wobble * 0.45f;
+
+            points[i] = point + normal * offset;
+        }
+
+        var white = new Color32(255, 255, 255, 255);
+        for (int i = 0; i < steps; i++)
+        {
+            Vector2 a = points[i];
+            Vector2 b = points[(i + 1) % steps];
+            StampLine(pixels, width, height, a, b, lineRadius, white);
+        }
+    }
+
+    /// <summary>
+    /// จุดบนเส้นรอบรูปสี่เหลี่ยมมุมมน ที่ระยะ t (0..1) รอบเส้นรอบรูป
+    /// คืนทิศตั้งฉากออกด้านนอกมาด้วย เอาไว้เลื่อนจุดให้เส้นสั่น
+    ///
+    /// เดินตามเส้นรอบรูปจริงตามสัดส่วนความยาว ไม่ใช่แบ่งเท่า ๆ กันสี่ด้าน
+    /// ไม่งั้นด้านสั้นจะมีจุดกระจุกจนเส้นหนากว่าด้านยาว
+    /// </summary>
+    private static Vector2 RoundedRectPoint(
+        float left, float right, float bottom, float top, float radius, float t, out Vector2 normal)
+    {
+        float straightX = Mathf.Max(0f, (right - left) - radius * 2f);
+        float straightY = Mathf.Max(0f, (top - bottom) - radius * 2f);
+        float arc = radius * Mathf.PI * 0.5f;
+
+        float perimeter = straightX * 2f + straightY * 2f + arc * 4f;
+        float distance = t * perimeter;
+
+        // ไล่ทีละช่วง เริ่มจากกลางขอบล่างวนทวนเข็ม
+        float cursor = distance;
+
+        // ขอบล่าง ครึ่งหลัง
+        float half = straightX * 0.5f;
+        if (cursor < half)
+        {
+            normal = Vector2.down;
+            return new Vector2(left + radius + half + cursor, bottom);
+        }
+        cursor -= half;
+
+        if (cursor < arc)
+        {
+            float angle = Mathf.PI * 1.5f + (cursor / arc) * Mathf.PI * 0.5f;
+            normal = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            return new Vector2(right - radius, bottom + radius) + normal * radius;
+        }
+        cursor -= arc;
+
+        if (cursor < straightY)
+        {
+            normal = Vector2.right;
+            return new Vector2(right, bottom + radius + cursor);
+        }
+        cursor -= straightY;
+
+        if (cursor < arc)
+        {
+            float angle = (cursor / arc) * Mathf.PI * 0.5f;
+            normal = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            return new Vector2(right - radius, top - radius) + normal * radius;
+        }
+        cursor -= arc;
+
+        if (cursor < straightX)
+        {
+            normal = Vector2.up;
+            return new Vector2(right - radius - cursor, top);
+        }
+        cursor -= straightX;
+
+        if (cursor < arc)
+        {
+            float angle = Mathf.PI * 0.5f + (cursor / arc) * Mathf.PI * 0.5f;
+            normal = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            return new Vector2(left + radius, top - radius) + normal * radius;
+        }
+        cursor -= arc;
+
+        if (cursor < straightY)
+        {
+            normal = Vector2.left;
+            return new Vector2(left, top - radius - cursor);
+        }
+        cursor -= straightY;
+
+        if (cursor < arc)
+        {
+            float angle = Mathf.PI + (cursor / arc) * Mathf.PI * 0.5f;
+            normal = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            return new Vector2(left + radius, bottom + radius) + normal * radius;
+        }
+        cursor -= arc;
+
+        normal = Vector2.down;
+        return new Vector2(left + radius + cursor, bottom);
+    }
+
+    /// <summary>แต้มวงกลมถี่ ๆ ตลอดแนวจากจุดหนึ่งไปอีกจุด</summary>
+    private static void StampLine(
+        Color32[] pixels, int width, int height,
+        Vector2 from, Vector2 to, float radius, Color32 color)
+    {
+        float distance = Vector2.Distance(from, to);
+        int steps = Mathf.Max(1, Mathf.CeilToInt(distance));
+
+        for (int i = 0; i <= steps; i++)
+        {
+            Vector2 center = Vector2.Lerp(from, to, (float)i / steps);
+
+            int minX = Mathf.Max(0, Mathf.FloorToInt(center.x - radius));
+            int maxX = Mathf.Min(width - 1, Mathf.CeilToInt(center.x + radius));
+            int minY = Mathf.Max(0, Mathf.FloorToInt(center.y - radius));
+            int maxY = Mathf.Min(height - 1, Mathf.CeilToInt(center.y + radius));
+
+            for (int y = minY; y <= maxY; y++)
+            {
+                for (int x = minX; x <= maxX; x++)
+                {
+                    float dx = x + 0.5f - center.x;
+                    float dy = y + 0.5f - center.y;
+                    float d = Mathf.Sqrt(dx * dx + dy * dy);
+                    if (d > radius) continue;
+
+                    byte alpha = (byte)(Mathf.Clamp01(radius - d) * 255f);
+                    int index = y * width + x;
+
+                    // เอาค่าที่เข้มกว่า ไม่งั้นจุดที่วงกลมซ้อนกันจะทึบขึ้นเรื่อย ๆ
+                    if (alpha > pixels[index].a) pixels[index] = new Color32(color.r, color.g, color.b, alpha);
+                }
+            }
+        }
     }
 }
