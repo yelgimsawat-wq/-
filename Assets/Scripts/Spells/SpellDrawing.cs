@@ -64,10 +64,22 @@ namespace MagicDrawing
         [Header("ยิงด้วยเสียง")]
         [Tooltip("ตอนเล็งอยู่ ต้องตะโกนให้ดังถึงค่านี้เวทถึงจะออก")]
         [Range(0.05f, 1f)]
-        [SerializeField] private float fireVoiceThreshold = 0.3f;
+        [SerializeField] private float fireVoiceThreshold = 0.38f;
+
+        [Tooltip("เสียงต่ำกว่านี้ถือว่าพูดจบแล้ว ใช้ตัดสินว่าเมื่อไรควรปล่อยเวท")]
+        [Range(0f, 1f)]
+        [SerializeField] private float voiceReleaseLevel = 0.12f;
+
+        [Tooltip("เงียบต่อเนื่องกี่วินาทีถึงจะถือว่าพูดจบจริง "
+                 + "กันเว้นวรรคกลางประโยคแล้วเวทออกก่อนพูดจบ")]
+        [SerializeField] private float voiceReleaseDelay = 0.25f;
 
         [Tooltip("ไม่มีไมค์ให้กดปุ่มยิงแทนได้ ปิดข้อนี้ = ไม่มีไมค์ก็ยิงไม่ได้เลย")]
         [SerializeField] private bool allowKeyFireWithoutMic = true;
+
+        // ตะโกนถึงเกณฑ์แล้วหรือยัง ถึงแล้วเหลือแค่รอให้พูดจบ
+        private bool voiceArmed;
+        private float quietTimer;
 
         [Header("ปุ่ม")]
         [SerializeField] private Key confirmKey = Key.Space;
@@ -360,11 +372,32 @@ namespace MagicDrawing
         {
             bool hasMic = voicePower != null && voicePower.HasAudioSource;
 
-            if (hasMic && voicePower.CurrentPower >= fireVoiceThreshold) return true;
+            if (!hasMic)
+                return allowKeyFireWithoutMic && WasConfirmPressed();
 
-            if (!hasMic && allowKeyFireWithoutMic && WasConfirmPressed()) return true;
+            float level = voicePower.CurrentPower;
 
-            return false;
+            // ยังพูดดังอยู่ ยังไม่ปล่อยเวท
+            //
+            // ต้องรอให้พูดจบก่อน ไม่ใช่ยิงทันทีที่ถึงเกณฑ์ เพราะการร่ายคาถา
+            // ควรได้พูดจนจบประโยค ถ้าตัดตั้งแต่พยางค์แรกที่ดังถึงเกณฑ์
+            // จะรู้สึกเหมือนโดนแย่งพูด และตะโกนต่อให้แรงขึ้นก็ไม่ทัน
+            if (level >= fireVoiceThreshold)
+            {
+                voiceArmed = true;
+                quietTimer = 0f;
+                return false;
+            }
+
+            // ยังไม่เคยดังถึงเกณฑ์เลย ก็ยังไม่มีอะไรให้ปล่อย
+            if (!voiceArmed) return false;
+
+            // นับเวลาเงียบต่อเนื่อง เว้นวรรคกลางประโยคจะรีเซ็ตตัวนับ
+            // เวทจึงไม่ออกกลางคันตอนหายใจ
+            if (level <= voiceReleaseLevel) quietTimer += Time.deltaTime;
+            else quietTimer = 0f;
+
+            return quietTimer >= voiceReleaseDelay;
         }
 
         /// <summary>บอกหลอดเสียงว่าต้องดังแค่ไหนถึงจะยิง ผู้เล่นจะได้เล็งความดังถูก</summary>
@@ -441,6 +474,9 @@ namespace MagicDrawing
 
         private void ResetToIdle()
         {
+            voiceArmed = false;
+            quietTimer = 0f;
+
             // ออกจากขั้นเล็งแล้วก็ไม่ต้องโชว์เส้นเกณฑ์อีก
             if (VoiceMeter.Instance != null) VoiceMeter.Instance.SetThreshold(0f, false);
 
