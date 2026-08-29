@@ -75,6 +75,7 @@ public class OnlineUI2D : MonoBehaviour
                 throw new Exception("สร้าง Session ได้ แต่ Netcode ไม่เริ่มทำงาน");
 
             status = "สร้างห้องสำเร็จ";
+            Debug.Log($"[OnlineUI2D] สร้างห้องสำเร็จ รหัส {session.Code} รับได้ {maxPlayers} คน");
         }
         catch (Exception e)
         {
@@ -114,8 +115,13 @@ public class OnlineUI2D : MonoBehaviour
         if (string.IsNullOrEmpty(code))
         {
             status = "ใส่รหัสห้องก่อน";
+            // บันทึกไว้ด้วย ไม่งั้นเวลาผู้เล่นบอกว่ากดแล้วไม่มีอะไรเกิดขึ้น
+            // จะแยกไม่ออกว่าไม่ได้ใส่รหัส หรือปุ่มเสีย
+            Debug.LogWarning("[OnlineUI2D] กดเข้าห้องแต่ยังไม่ได้ใส่รหัส");
             return;
         }
+
+        Debug.Log($"[OnlineUI2D] กำลังเข้าห้องด้วยรหัส {code}");
 
         busy = true;
         status = "กำลังเข้าห้อง...";
@@ -131,6 +137,7 @@ public class OnlineUI2D : MonoBehaviour
                 throw new Exception("เข้า Session ได้ แต่ Netcode ไม่เริ่มทำงาน");
 
             status = "เข้าห้องสำเร็จ";
+            Debug.Log($"[OnlineUI2D] เข้าห้อง {session.Code} สำเร็จ");
         }
         catch (Exception e)
         {
