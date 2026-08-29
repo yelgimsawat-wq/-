@@ -243,6 +243,18 @@ public class OnlineUI2D : MonoBehaviour
     [SerializeField] private GameObject profilePanel;
     [SerializeField] private GameObject joinPanel;
     [SerializeField] private GameObject roomPanel;
+
+    [Tooltip("หน้าตั้งค่าไมโครโฟน")]
+    [SerializeField] private GameObject micPanel;
+
+    [Tooltip("ปุ่มเปิดหน้าตั้งค่าไมค์ อยู่ในหน้าเข้าห้อง")]
+    [SerializeField] private Button openMicButton;
+
+    [Tooltip("ปุ่มปิดหน้าตั้งค่าไมค์")]
+    [SerializeField] private Button closeMicButton;
+
+    // เปิดหน้าตั้งค่าไมค์ค้างไว้อยู่หรือเปล่า
+    private bool micPanelOpen;
     [SerializeField] private GameObject compactPanel;
 
     [Header("หน้าตั้งชื่อและวาดตัวละคร")]
@@ -296,6 +308,8 @@ public class OnlineUI2D : MonoBehaviour
         if (joinButton != null) joinButton.onClick.AddListener(OnJoinClicked);
         if (copyButton != null) copyButton.onClick.AddListener(OnCopyClicked);
         if (startButton != null) startButton.onClick.AddListener(StartGame);
+        if (openMicButton != null) openMicButton.onClick.AddListener(OnOpenMicClicked);
+        if (closeMicButton != null) closeMicButton.onClick.AddListener(OnCloseMicClicked);
         if (leaveButton != null) leaveButton.onClick.AddListener(OnLeaveClicked);
         if (compactLeaveButton != null) compactLeaveButton.onClick.AddListener(OnLeaveClicked);
 
@@ -309,6 +323,8 @@ public class OnlineUI2D : MonoBehaviour
         if (joinButton != null) joinButton.onClick.RemoveListener(OnJoinClicked);
         if (copyButton != null) copyButton.onClick.RemoveListener(OnCopyClicked);
         if (startButton != null) startButton.onClick.RemoveListener(StartGame);
+        if (openMicButton != null) openMicButton.onClick.RemoveListener(OnOpenMicClicked);
+        if (closeMicButton != null) closeMicButton.onClick.RemoveListener(OnCloseMicClicked);
         if (leaveButton != null) leaveButton.onClick.RemoveListener(OnLeaveClicked);
         if (compactLeaveButton != null) compactLeaveButton.onClick.RemoveListener(OnLeaveClicked);
 
@@ -363,6 +379,10 @@ public class OnlineUI2D : MonoBehaviour
 
     private void OnHostClicked() => _ = HostAsync();
     private void OnJoinClicked() => _ = JoinAsync();
+    private void OnOpenMicClicked() => micPanelOpen = true;
+
+    private void OnCloseMicClicked() => micPanelOpen = false;
+
     private void OnLeaveClicked() => _ = LeaveAsync();
 
     private void OnCopyClicked()
@@ -409,7 +429,12 @@ public class OnlineUI2D : MonoBehaviour
 
         SetActive(compactPanel, inGame);
         SetActive(profilePanel, inMenu && !profileConfirmed);
-        SetActive(joinPanel, inMenu && profileConfirmed);
+        // หน้าตั้งค่าไมค์บังหน้าเข้าห้องไว้ชั่วคราว ไม่ให้ซ้อนกันจนกดผิด
+        // และปิดเองเมื่อออกจากเมนู เช่นตอนเข้าห้องสำเร็จ
+        if (!inMenu) micPanelOpen = false;
+
+        SetActive(micPanel, inMenu && profileConfirmed && micPanelOpen);
+        SetActive(joinPanel, inMenu && profileConfirmed && !micPanelOpen);
         SetActive(roomPanel, connected && !inGame);
 
         // ปุ่มยืนยันกดได้ก็ต่อเมื่อวาดผ่านเงื่อนไขขนาดแล้ว

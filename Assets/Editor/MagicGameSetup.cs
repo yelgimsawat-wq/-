@@ -363,6 +363,7 @@ public static class MagicGameSetup
         GameObject profilePanel = CreateProfilePanel(canvasGo.transform, ui);
         GameObject joinPanel = CreatePanel(canvasGo.transform, "JoinPanel", new Vector2(560f, 580f));
         GameObject roomPanel = CreatePanel(canvasGo.transform, "RoomPanel", new Vector2(560f, 620f));
+        CreateMicPanel(canvasGo.transform, ui);
 
         // ---- หน้าเข้าห้อง ----
         CreateText(joinPanel.transform, "Title", "วงเวทออนไลน์", 46, TitleColor, FontStyle.Bold);
@@ -373,6 +374,13 @@ public static class MagicGameSetup
         CreateText(joinPanel.transform, "OrLabel", "— หรือ —", 20, TextColor);
         InputField codeInput = CreateInput(joinPanel.transform, "CodeInput", "ใส่รหัสห้อง");
         Button joinButton = CreateButton(joinPanel.transform, "JoinButton", "เข้าห้องด้วยรหัส");
+        Button micButton = CreateButton(joinPanel.transform, "MicButton", "ตั้งค่าไมโครโฟน");
+
+        // ผูกตรงนี้เลย ไม่ส่งต่อไปเมธอดผูกรวม เพราะเมธอดนั้นรับพารามิเตอร์ยาวมากอยู่แล้ว
+        // เพิ่มอีกตัวจะยิ่งอ่านยากและพลาดง่ายเวลาสลับลำดับ
+        var micButtonSo = new SerializedObject(ui);
+        micButtonSo.FindProperty("openMicButton").objectReferenceValue = micButton;
+        micButtonSo.ApplyModifiedPropertiesWithoutUndo();
         Button editProfileButton = CreateButton(joinPanel.transform, "EditProfileButton", "แก้ไขตัวละคร");
 
         // ---- หน้าในห้อง ----
@@ -2101,5 +2109,157 @@ public static class MagicGameSetup
         so.FindProperty("thresholdMarker").objectReferenceValue = markerRect;
         so.FindProperty("peakMarker").objectReferenceValue = peakRect;
         so.ApplyModifiedPropertiesWithoutUndo();
+    }
+    /// <summary>
+    /// หน้าตั้งค่าไมโครโฟน เลือกไมค์แล้วทดสอบว่าได้ยินจริงไหม
+    ///
+    /// มีเพราะ "ไมค์ไม่ติด" หาสาเหตุเองไม่ได้เลยจากในเกม ผู้เล่นเห็นแค่ว่าเวทไม่ออก
+    /// แต่แยกไม่ออกว่าเพราะพูดเบาไป เลือกไมค์ผิดตัว หรือ Windows ไม่ให้สิทธิ์
+    /// </summary>
+    private static GameObject CreateMicPanel(Transform canvas, OnlineUI2D ui)
+    {
+        GameObject panel = CreatePanel(canvas, "MicPanel", new Vector2(620f, 560f));
+
+        CreateText(panel.transform, "Title", "ตั้งค่าไมโครโฟน", 34, TitleColor, FontStyle.Bold);
+        CreateText(panel.transform, "Caption", "เลือกไมค์ที่จะใช้", 20, TextColor);
+
+        Dropdown dropdown = CreateDropdown(panel.transform, "DeviceDropdown");
+
+        CreateText(panel.transform, "TestCaption", "ทดสอบเสียง", 20, TextColor);
+
+        // หลอดทดสอบวางแนวนอน อ่านง่ายกว่าแนวตั้งเมื่ออยู่ในการ์ด
+        var track = new GameObject("LevelTrack", typeof(Image));
+        track.transform.SetParent(panel.transform, false);
+        track.GetComponent<Image>().color = new Color(0.16f, 0.18f, 0.24f);
+
+        var trackElement = track.AddComponent<LayoutElement>();
+        trackElement.minHeight = 34f;
+        trackElement.preferredHeight = 34f;
+
+        var fillGo = new GameObject("Fill", typeof(Image));
+        fillGo.transform.SetParent(track.transform, false);
+        StretchToParent(fillGo.GetComponent<RectTransform>());
+
+        var fill = fillGo.GetComponent<Image>();
+        fill.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SquareTexturePath);
+        fill.type = Image.Type.Filled;
+        fill.fillMethod = Image.FillMethod.Horizontal;
+        fill.fillOrigin = (int)Image.OriginHorizontal.Left;
+        fill.fillAmount = 0f;
+
+        Text status = CreateText(panel.transform, "Status", "", 19, TextColor);
+
+        // ข้อความสถานะยาวได้หลายบรรทัด ต้องเผื่อที่ไว้ ไม่งั้นตัวหนังสือจะถูกตัด
+        var statusElement = status.GetComponent<LayoutElement>();
+        if (statusElement != null)
+        {
+            statusElement.minHeight = 72f;
+            statusElement.preferredHeight = 72f;
+        }
+        status.alignment = TextAnchor.UpperCenter;
+
+        Button close = CreateButton(panel.transform, "CloseMicButton", "เสร็จแล้ว กลับไปเข้าห้อง");
+
+        var test = panel.AddComponent<MagicDrawing.MicTestPanel>();
+        var testSo = new SerializedObject(test);
+        testSo.FindProperty("deviceDropdown").objectReferenceValue = dropdown;
+        testSo.FindProperty("levelFill").objectReferenceValue = fill;
+        testSo.FindProperty("statusLabel").objectReferenceValue = status;
+        testSo.ApplyModifiedPropertiesWithoutUndo();
+
+        var uiSo = new SerializedObject(ui);
+        uiSo.FindProperty("micPanel").objectReferenceValue = panel;
+        uiSo.FindProperty("closeMicButton").objectReferenceValue = close;
+        uiSo.ApplyModifiedPropertiesWithoutUndo();
+
+        return panel;
+    }
+
+    /// <summary>
+    /// กล่องเลือกแบบพื้นฐาน Unity ไม่มีตัวช่วยสร้างจากโค้ด ต้องประกอบเองทั้งชุด
+    /// โครงที่ Dropdown ต้องการคือ ป้ายข้อความ ลูกศร และแม่แบบรายการที่กางลงมา
+    /// </summary>
+    private static Dropdown CreateDropdown(Transform parent, string name)
+    {
+        var go = new GameObject(name, typeof(Image), typeof(Dropdown));
+        go.transform.SetParent(parent, false);
+        go.GetComponent<Image>().color = new Color(0.16f, 0.18f, 0.24f);
+
+        var element = go.AddComponent<LayoutElement>();
+        element.minHeight = 52f;
+        element.preferredHeight = 52f;
+
+        Text label = CreateText(go.transform, "Label", "", 20, Color.white);
+        Object.DestroyImmediate(label.GetComponent<LayoutElement>());
+        var labelRect = label.GetComponent<RectTransform>();
+        StretchToParent(labelRect);
+        labelRect.offsetMin = new Vector2(14f, 0f);
+        labelRect.offsetMax = new Vector2(-30f, 0f);
+        label.alignment = TextAnchor.MiddleLeft;
+
+        // แม่แบบรายการที่กางลงมา ต้องปิดไว้ Unity จะเปิดเองตอนกด
+        var template = new GameObject("Template", typeof(Image), typeof(ScrollRect));
+        template.transform.SetParent(go.transform, false);
+        template.GetComponent<Image>().color = new Color(0.13f, 0.15f, 0.20f);
+
+        var templateRect = template.GetComponent<RectTransform>();
+        templateRect.anchorMin = new Vector2(0f, 0f);
+        templateRect.anchorMax = new Vector2(1f, 0f);
+        templateRect.pivot = new Vector2(0.5f, 1f);
+        templateRect.anchoredPosition = new Vector2(0f, 2f);
+        templateRect.sizeDelta = new Vector2(0f, 190f);
+
+        var viewport = new GameObject("Viewport", typeof(Image), typeof(Mask));
+        viewport.transform.SetParent(template.transform, false);
+        viewport.GetComponent<Mask>().showMaskGraphic = false;
+        var viewportRect = viewport.GetComponent<RectTransform>();
+        StretchToParent(viewportRect);
+
+        var content = new GameObject("Content", typeof(RectTransform));
+        content.transform.SetParent(viewport.transform, false);
+        var contentRect = content.GetComponent<RectTransform>();
+        contentRect.anchorMin = new Vector2(0f, 1f);
+        contentRect.anchorMax = new Vector2(1f, 1f);
+        contentRect.pivot = new Vector2(0.5f, 1f);
+        contentRect.sizeDelta = new Vector2(0f, 46f);
+
+        var item = new GameObject("Item", typeof(Toggle));
+        item.transform.SetParent(content.transform, false);
+        var itemRect = item.GetComponent<RectTransform>();
+        itemRect.anchorMin = new Vector2(0f, 0.5f);
+        itemRect.anchorMax = new Vector2(1f, 0.5f);
+        itemRect.sizeDelta = new Vector2(0f, 46f);
+
+        var itemBackground = new GameObject("Item Background", typeof(Image));
+        itemBackground.transform.SetParent(item.transform, false);
+        itemBackground.GetComponent<Image>().color = new Color(0.20f, 0.23f, 0.30f);
+        StretchToParent(itemBackground.GetComponent<RectTransform>());
+
+        Text itemLabel = CreateText(item.transform, "Item Label", "", 19, Color.white);
+        Object.DestroyImmediate(itemLabel.GetComponent<LayoutElement>());
+        var itemLabelRect = itemLabel.GetComponent<RectTransform>();
+        StretchToParent(itemLabelRect);
+        itemLabelRect.offsetMin = new Vector2(14f, 0f);
+        itemLabelRect.offsetMax = new Vector2(-10f, 0f);
+        itemLabel.alignment = TextAnchor.MiddleLeft;
+
+        var toggle = item.GetComponent<Toggle>();
+        toggle.targetGraphic = itemBackground.GetComponent<Image>();
+
+        var scroll = template.GetComponent<ScrollRect>();
+        scroll.content = contentRect;
+        scroll.viewport = viewportRect;
+        scroll.horizontal = false;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+
+        var dropdown = go.GetComponent<Dropdown>();
+        dropdown.targetGraphic = go.GetComponent<Image>();
+        dropdown.captionText = label;
+        dropdown.itemText = itemLabel;
+        dropdown.template = templateRect;
+
+        template.SetActive(false);
+
+        return dropdown;
     }
 }
