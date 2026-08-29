@@ -118,7 +118,7 @@ public static class MagicGameSetup
     /// </summary>
     private static void BuildGameScene(Sprite squareSprite)
     {
-        Scene scene = NewSceneFromTemplate();
+        Scene scene = OpenOrCreateScene(GameScenePath);
 
         ConfigureCamera();
         CreateGround(squareSprite);
@@ -136,11 +136,13 @@ public static class MagicGameSetup
     /// </summary>
     private static void BuildLobbyScene(GameObject playerPrefab)
     {
-        Scene scene = NewSceneFromTemplate();
+        Scene scene = OpenOrCreateScene(LobbyScenePath);
 
         ConfigureCamera();
         CreateEventSystem();
 
+        // ไม่ได้เริ่มจากซีนเปล่าแล้ว ต้องลบของเดิมก่อนไม่งั้นได้สองตัวชนกัน
+        DestroySceneObject("NetworkManager");
         var go = new GameObject("NetworkManager");
 
         var manager = go.AddComponent<NetworkManager>();
@@ -340,6 +342,8 @@ public static class MagicGameSetup
     /// </summary>
     private static Text BuildMenuCanvas(OnlineUI2D ui, Transform parent)
     {
+        DestroySceneObject("MenuCanvas");
+
         var canvasGo = new GameObject("MenuCanvas",
             typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         canvasGo.transform.SetParent(parent, false);
@@ -1291,6 +1295,39 @@ public static class MagicGameSetup
     ///
     /// SaveScene ไปที่ path ใหม่ทีหลัง ตัว template จึงไม่ถูกแก้
     /// </summary>
+    /// <summary>
+    /// เปิดซีนที่มีอยู่แล้ว ถ้ายังไม่มีค่อยสร้างใหม่จากแม่แบบ
+    ///
+    /// สำคัญมาก ห้ามสร้างซีนใหม่ทับของเดิมเด็ดขาด
+    /// เดิมสคริปต์นี้เปิดแม่แบบเปล่าแล้วเซฟทับ ทำให้ของที่ผู้ใช้วางไว้เอง
+    /// เช่น แมพที่สร้างมาทั้งวัน หายทั้งหมดโดยไม่มีทางกู้ถ้ายังไม่ได้ commit
+    ///
+    /// สคริปต์นี้เป็นเจ้าของแค่ของที่ตัวเองสร้าง (Ground, NetworkManager, MenuCanvas,
+    /// EventSystem) ของพวกนั้นเขียนทับได้ ที่เหลือในฉากต้องไม่ไปยุ่ง
+    /// </summary>
+    private static Scene OpenOrCreateScene(string scenePath)
+    {
+        if (File.Exists(scenePath))
+        {
+            Scene existing = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+
+            int kept = existing.GetRootGameObjects().Length;
+            if (kept > 0)
+                Debug.Log($"[MagicGameSetup] เปิดซีนเดิม {scenePath} ของที่มีอยู่ {kept} ชิ้นถูกเก็บไว้");
+
+            return existing;
+        }
+
+        return NewSceneFromTemplate();
+    }
+
+    /// <summary>ลบของเดิมชื่อเดียวกันทิ้ง ใช้ก่อนสร้างใหม่ กันของซ้อนกันตอนสั่งซ้ำ</summary>
+    private static void DestroySceneObject(string name)
+    {
+        GameObject existing = GameObject.Find(name);
+        if (existing != null) Object.DestroyImmediate(existing);
+    }
+
     private static Scene NewSceneFromTemplate()
     {
         const string templatePath = "Assets/Settings/Scenes/URP2DSceneTemplate.unity";
