@@ -2070,6 +2070,19 @@ public static class MagicGameSetup
         markerRect.sizeDelta = new Vector2(6f, 3f);
         marker.SetActive(false);
 
+        // ขีดบอกว่าเสียงเคยขึ้นไปถึงไหนแล้ว คนละเส้นกับเกณฑ์ยิง
+        var peak = new GameObject("Peak", typeof(Image));
+        peak.transform.SetParent(track.transform, false);
+        peak.GetComponent<Image>().color = new Color(1f, 0.95f, 0.4f);
+
+        var peakRect = peak.GetComponent<RectTransform>();
+        peakRect.anchorMin = new Vector2(0f, 0f);
+        peakRect.anchorMax = new Vector2(1f, 0f);
+        peakRect.pivot = new Vector2(0.5f, 0.5f);
+        peakRect.anchoredPosition = Vector2.zero;
+        peakRect.sizeDelta = new Vector2(0f, 2f);
+        peak.SetActive(false);
+
         Text status = CreateText(frame.transform, "Status", "", 13, Color.white);
         Object.DestroyImmediate(status.GetComponent<LayoutElement>());
 
@@ -2086,6 +2099,7 @@ public static class MagicGameSetup
         so.FindProperty("fill").objectReferenceValue = fill;
         so.FindProperty("statusLabel").objectReferenceValue = status;
         so.FindProperty("thresholdMarker").objectReferenceValue = markerRect;
+        so.FindProperty("peakMarker").objectReferenceValue = peakRect;
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 }

@@ -26,6 +26,9 @@ namespace MagicDrawing
         [Tooltip("เส้นบอกระดับที่ต้องตะโกนให้ถึงเพื่อยิงเวท ปล่อยว่างได้")]
         [SerializeField] private RectTransform thresholdMarker;
 
+        [Tooltip("ขีดบอกว่าเสียงเคยขึ้นไปถึงไหนแล้วในคาถานี้ ปล่อยว่างได้")]
+        [SerializeField] private RectTransform peakMarker;
+
         [Header("สีตามความดัง")]
         [SerializeField] private Color quietColor = new Color(0.35f, 0.85f, 0.40f);
         [SerializeField] private Color mediumColor = new Color(1f, 0.85f, 0.25f);
@@ -103,6 +106,25 @@ namespace MagicDrawing
             thresholdMarker.anchorMin = new Vector2(0f, fireThreshold);
             thresholdMarker.anchorMax = new Vector2(1f, fireThreshold);
             thresholdMarker.anchoredPosition = Vector2.zero;
+        }
+
+        /// <summary>
+        /// ขีดบอกว่าเสียงเคยขึ้นไปถึงไหนแล้วในคาถานี้
+        ///
+        /// แยกจากตัวหลอดเพราะหลอดโชว์ค่าสด ซึ่งตกลงทันทีที่หยุดพูด
+        /// ถ้าไม่มีขีดนี้ ผู้เล่นจะไม่รู้เลยว่าที่ตะโกนไปเมื่อกี้ขึ้นไปถึงไหน
+        /// </summary>
+        public void SetPeak(float level, bool visible)
+        {
+            if (peakMarker == null) return;
+
+            peakMarker.gameObject.SetActive(visible);
+            if (!visible) return;
+
+            float clamped = Mathf.Clamp01(level);
+            peakMarker.anchorMin = new Vector2(0f, clamped);
+            peakMarker.anchorMax = new Vector2(1f, clamped);
+            peakMarker.anchoredPosition = Vector2.zero;
         }
 
         /// <summary>

@@ -184,8 +184,12 @@ namespace MagicDrawing
             switch (state.Value)
             {
                 case MatchState.Waiting:
+                    // ต้องบอกให้ครบว่ารออะไรและระหว่างรอทำอะไรได้
+                    // ถ้าเขียนแค่ "รอผู้เล่นอีก 1 คน" ผู้เล่นจะงงว่าตัวเองเข้าเกมแล้ว
+                    // ทำไมยังขึ้นว่ารออยู่ และไม่รู้ว่าเดินยิงซ้อมไปก่อนได้
                     return aliveCount.Value < minPlayersToStart
-                        ? $"รอผู้เล่นอีก {minPlayersToStart - aliveCount.Value} คน"
+                        ? $"รอเพื่อนอีก {minPlayersToStart - aliveCount.Value} คนถึงจะเริ่มนับแพ้ชนะ"
+                          + "   —   ระหว่างนี้ซ้อมวาดเวทได้ตามปกติ"
                         : "";
 
                 case MatchState.RoundOver:
