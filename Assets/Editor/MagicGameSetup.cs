@@ -1011,7 +1011,15 @@ public static class MagicGameSetup
         trail.startWidth = 0.35f;
         trail.endWidth = 0f;
         trail.numCapVertices = 4;
-        trail.material = new Material(Shader.Find("Sprites/Default"));
+        // ต้องใช้วัสดุที่เป็นไฟล์จริงในโปรเจกต์ ห้ามใช้ new Material(...)
+        //
+        // วัสดุที่สร้างด้วย new อยู่แค่ในหน่วยความจำ ไม่มีไฟล์รองรับ
+        // พอ SaveAsPrefabAsset เซฟ prefab อ้างอิงจึงหลุดเป็นค่าว่าง
+        // แล้ว Unity วาด renderer ที่ไม่มีวัสดุเป็นสีม่วงบานเย็น
+        //
+        // Sprites-Default เป็นวัสดุที่ Unity ติดมาให้ ตัวเดียวกับที่ SpriteRenderer
+        // ใช้อยู่แล้ว จึงเข้ากับ URP และอ้างอิงได้ถาวร
+        trail.material = AssetDatabase.GetBuiltinExtraResource<Material>("Sprites-Default.mat");
         trail.sortingOrder = 440;
         // ไม่ให้หางลากตามตอนที่ prefab ถูกย้ายตำแหน่งตอนเกิด
         trail.autodestruct = false;
