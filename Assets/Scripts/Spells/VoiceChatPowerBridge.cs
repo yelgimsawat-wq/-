@@ -46,7 +46,13 @@ namespace MagicDrawing
         private void OnEnable()
         {
             if (audioInput == null)
-                audioInput = FindFirstObjectByType<VcAudioInput>();
+                audioInput = GetComponentInChildren<VcAudioInput>(true);
+
+            // ห้ามใช้ FindFirstObjectByType หาจากทั้งฉาก
+            //
+            // ในห้องมีตัวละครหลายตัว แต่ละตัวมีไมค์ของตัวเอง การค้นทั้งฉาก
+            // จะคว้าตัวไหนก็ได้ที่เจอก่อน สะพานของเราอาจไปเกาะไมค์ของคนอื่น
+            // แล้วความแรงเวทของเราจะขึ้นกับเสียงเพื่อนแทนเสียงตัวเอง
 
             if (audioInput == null)
             {

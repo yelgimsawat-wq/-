@@ -60,6 +60,15 @@ namespace MagicDrawing
         private bool externalSource;
         private float rawLoudness;
 
+        // เวลาล่าสุดที่ระบบ voice chat ป้อนเสียงเข้ามา
+        // ใช้ตัดสินว่ามันทำงานอยู่จริงหรือแค่จองสิทธิ์ไว้แล้วเงียบ
+        private float lastExternalSample = float.NegativeInfinity;
+        private float nextMicRetry;
+
+        [Tooltip("ถ้าระบบ voice chat จองไมค์ไว้แล้วเงียบเกินกี่วินาที "
+                 + "ให้ถือว่ามันเปิดไม่สำเร็จ แล้วเปิดไมค์เองแทน")]
+        [SerializeField] private float externalSilenceTimeout = 2f;
+
         private bool capturing;
         private bool hasCaptured;
         private float peakPower;
@@ -92,8 +101,18 @@ namespace MagicDrawing
         /// <summary>ความแรงตอนนี้ 0 = เงียบ, 1 = ดังเต็มที่</summary>
         public float CurrentPower => HasAudioSource ? smoothedPower : fallbackPower;
 
+        /// <summary>
+        /// ระบบ voice chat กำลังป้อนเสียงอยู่จริงไหม
+        ///
+        /// ต้องเช็คว่ามีเสียงเข้ามาจริง ไม่ใช่แค่จองสิทธิ์ไว้
+        /// เพราะถ้ามันเปิดไมค์ไม่สำเร็จแต่เรานับว่ามีแหล่งเสียงแล้ว
+        /// จะกลายเป็นเงียบสนิททั้งเกมโดยไม่มีอะไรบอก
+        /// </summary>
+        private bool ExternalActive =>
+            externalSource && Time.time - lastExternalSample <= externalSilenceTimeout;
+
         /// <summary>มีแหล่งเสียงให้อ่านไหม ไม่ว่าจะจากไมค์เองหรือจากระบบ voice chat</summary>
-        public bool HasAudioSource => micReady || externalSource;
+        public bool HasAudioSource => micReady || ExternalActive;
 
         /// <summary>
         /// บอกว่าจะมีคนป้อนเสียงให้ ไม่ต้องเปิดไมค์เอง
@@ -117,6 +136,8 @@ namespace MagicDrawing
         {
             if (samples == null || samples.Length == 0) return;
 
+            lastExternalSample = Time.time;
+
             float sum = 0f;
             foreach (float sample in samples)
                 sum += sample * sample;
@@ -129,28 +150,64 @@ namespace MagicDrawing
             caster = GetComponent<SpellCaster>();
         }
 
-        private void Start()
+        /// <summary>
+        /// พยายามหาแหล่งเสียงให้ได้ เรียกซ้ำได้เรื่อย ๆ
+        ///
+        /// ทำใน Update แทน Start เพราะสองเหตุผล
+        ///
+        /// 1. ตอน Start ทำงาน ตัวละครอาจยังไม่ถูก spawn เข้าเครือข่าย
+        ///    IsOwner จึงยังเป็น false ทุกคน ถ้าเช็คแล้วเลิกไปเลย
+        ///    เจ้าของตัวจริงจะไม่ได้เปิดไมค์ กลายเป็นบางคนเสียงเข้าบางคนไม่เข้า
+        ///
+        /// 2. ระบบ voice chat อาจจองสิทธิ์ไมค์ไว้แล้วเปิดไม่สำเร็จ
+        ///    ถ้าไม่มีทางถอย เราจะถูกห้ามเปิดไมค์เองตลอดกาลแล้วเงียบสนิท
+        /// </summary>
+        private void EnsureAudioSource()
         {
-            // ตัวละครของคนอื่นไม่ต้องเปิดไมค์ เปลืองเปล่า ๆ และอาจชนกันเองด้วย
-            if (caster != null && !caster.IsOwner) return;
+            if (micReady) return;
 
-            // มีระบบ voice chat ป้อนเสียงให้แล้ว ห้ามเปิดไมค์ซ้ำ จะแย่งอุปกรณ์กัน
-            if (externalSource) return;
+            // ตัวละครของคนอื่นไม่ต้องเปิดไมค์ เปลืองเปล่า ๆ และอาจแย่งอุปกรณ์กัน
+            // ยังไม่ spawn ก็ยังบอกไม่ได้ว่าใครเป็นเจ้าของ รอไปก่อน
+            if (caster != null && (!caster.IsSpawned || !caster.IsOwner)) return;
+
+            // ระบบ voice chat ทำงานอยู่จริง ไม่ต้องเปิดซ้ำ
+            if (ExternalActive) return;
+
+            // จองไว้แต่ยังไม่เคยส่งเสียงมา รอให้ครบเวลาก่อนค่อยตัดสินว่าเปิดไม่สำเร็จ
+            if (externalSource && lastExternalSample == float.NegativeInfinity
+                && Time.time < externalSilenceTimeout) return;
+
+            if (Time.time < nextMicRetry) return;
+            nextMicRetry = Time.time + 1f;
 
             StartMicrophone();
+        }
+
+        private bool warned;
+
+        /// <summary>เตือนครั้งเดียวพอ ไม่งั้นลองใหม่ทุกวินาทีแล้ว Console จะท่วม</summary>
+        private void WarnOnce(string message)
+        {
+            if (warned) return;
+            warned = true;
+            Debug.LogWarning(message, this);
         }
 
         private void StartMicrophone()
         {
             if (Microphone.devices == null || Microphone.devices.Length == 0)
             {
-                Debug.LogWarning(
-                    "[SpellPower] ไม่พบไมโครโฟน จะใช้ความแรงคงที่แทน "
+                WarnOnce("[SpellPower] ไม่พบไมโครโฟน จะใช้ความแรงคงที่แทน "
                     + $"({fallbackPower:P0}) เกมยังเล่นได้ตามปกติ");
                 return;
             }
 
-            micDevice = Microphone.devices[0];
+            // ใช้ค่า null = ไมค์ที่ Windows ตั้งเป็นค่าเริ่มต้น
+            //
+            // ห้ามใช้ devices[0] เพราะลำดับในรายการไม่ได้เรียงตามตัวที่ใช้งานจริง
+            // เครื่องที่มีหลายไมค์ (เช่น USB กับไมค์ในตัวเครื่อง) จะเปิดผิดตัว
+            // แล้วได้แต่ความเงียบ ทั้งที่พูดใส่อีกตัวอยู่
+            micDevice = null;
 
             // อัดวนในคลิปสั้น ๆ 1 วินาที พอสำหรับดูความดังปัจจุบัน
             // และไม่กินหน่วยความจำเหมือนอัดเก็บไว้ยาว ๆ
@@ -158,17 +215,23 @@ namespace MagicDrawing
 
             if (micClip == null)
             {
-                Debug.LogWarning("[SpellPower] เปิดไมโครโฟนไม่สำเร็จ จะใช้ความแรงคงที่แทน");
+                WarnOnce("[SpellPower] เปิดไมโครโฟนไม่สำเร็จ จะใช้ความแรงคงที่แทน");
                 return;
             }
 
             sampleBuffer = new float[1024];
             micReady = true;
-            Debug.Log($"[SpellPower] ใช้ไมโครโฟน: {micDevice}");
+
+            string shown = string.IsNullOrEmpty(micDevice)
+                ? (Microphone.devices.Length > 0 ? Microphone.devices[0] + " (ค่าเริ่มต้นของระบบ)" : "ค่าเริ่มต้นของระบบ")
+                : micDevice;
+            Debug.Log($"[SpellPower] ใช้ไมโครโฟน: {shown}");
         }
 
         private void Update()
         {
+            EnsureAudioSource();
+
             // ต้องอัปเดตหลอดก่อนออกจากเมธอด ไม่งั้นตอนไม่มีไมค์หลอดจะค้าง
             // ไม่ขึ้นข้อความบอกว่าไม่มีไมค์เลย ผู้เล่นจะนึกว่าระบบพัง
             if (!HasAudioSource)
@@ -240,8 +303,10 @@ namespace MagicDrawing
         private void OnDestroy()
         {
             // ไม่ปิดไมค์ = ไฟไมค์ค้างติดหลังออกจากเกม ผู้เล่นจะตกใจ
-            if (micReady && !string.IsNullOrEmpty(micDevice))
-                Microphone.End(micDevice);
+            //
+            // ห้ามเช็คว่าชื่อไมค์ไม่ว่าง เพราะตอนนี้ใช้ null แทนไมค์ค่าเริ่มต้นของระบบ
+            // ซึ่งเป็นกรณีปกติ ถ้าเช็คแบบเดิมจะกลายเป็นไม่เคยปิดไมค์เลย
+            if (micReady) Microphone.End(micDevice);
         }
 
         /// <summary>
