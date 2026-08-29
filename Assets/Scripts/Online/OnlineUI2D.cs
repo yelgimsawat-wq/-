@@ -31,6 +31,12 @@ public class OnlineUI2D : MonoBehaviour
     [Tooltip("ชื่อซีนเกม ต้องอยู่ใน Build Settings ด้วย ไม่งั้น Netcode โหลดไม่ได้")]
     [SerializeField] private string gameSceneName = "Game";
 
+    [Tooltip("ชื่อซีนเมนู ใช้ตอนกดออกจากห้องเพื่อกลับมาหน้าแรก")]
+    [SerializeField] private string menuSceneName = "Menu";
+
+    /// <summary>ข้อความระหว่างรอโหลดซีนเกม เก็บเป็นค่าคงที่เพราะต้องเทียบเพื่อล้างทีหลัง</summary>
+    private const string LoadingGameStatus = "กำลังเข้าเกม...";
+
     private ISession session;
     private string joinCodeInput = string.Empty;
     private string status = "กำลังเชื่อมต่อ Unity Services...";
@@ -172,13 +178,18 @@ public class OnlineUI2D : MonoBehaviour
             NetworkManager.Singleton.SceneManager.LoadScene(gameSceneName, LoadSceneMode.Single);
 
         status = result == SceneEventProgressStatus.Started
-            ? "กำลังเข้าเกม..."
+            ? LoadingGameStatus
             : $"เข้าเกมไม่สำเร็จ: {result} (ใส่ซีนใน Build Settings หรือยัง)";
     }
 
     private bool IsInGameScene()
     {
         return SceneManager.GetActiveScene().name == gameSceneName;
+    }
+
+    private bool IsInMenuScene()
+    {
+        return SceneManager.GetActiveScene().name == menuSceneName;
     }
 
     private async Task LeaveAsync()
@@ -210,6 +221,14 @@ public class OnlineUI2D : MonoBehaviour
 
         status = "ออกจากห้องแล้ว";
         busy = false;
+
+        // กลับหน้าเมนู ไม่ใช่ค้างอยู่ในสนามรบที่ไม่มีใครแล้ว
+        //
+        // โหลดเองตรง ๆ ไม่ผ่าน Netcode เพราะตอนนี้ตัดการเชื่อมต่อไปแล้ว
+        // ตัว NetworkManager ติด DontDestroyOnLoad อยู่ ของในซีนเมนูที่โหลดใหม่
+        // จะเจอว่ามีตัวเดิมอยู่แล้วแล้วลบตัวเองทิ้ง เหลือตัวเดียวตามเดิม
+        if (!string.IsNullOrEmpty(menuSceneName) && !IsInMenuScene())
+            SceneManager.LoadScene(menuSceneName, LoadSceneMode.Single);
     }
 
     // ---------- หน้าตา (Canvas) ----------
@@ -397,6 +416,9 @@ public class OnlineUI2D : MonoBehaviour
         // ปิดปุ่มไว้ชัดเจนกว่าปล่อยให้กดแล้วขึ้นข้อความเตือนทุกครั้ง
         if (confirmProfileButton != null)
             confirmProfileButton.interactable = drawPad == null || drawPad.IsValid;
+
+        // เข้าเกมสำเร็จแล้วต้องล้างข้อความรอ ไม่งั้นค้างว่า "กำลังเข้าเกม..." ตลอด
+        if (inGame && status == LoadingGameStatus) status = "";
 
         if (statusText != null) statusText.text = status;
 

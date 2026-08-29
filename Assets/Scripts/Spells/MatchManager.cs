@@ -86,8 +86,16 @@ namespace MagicDrawing
 
             RefreshAliveCount();
 
-            // ยังไม่ได้เริ่มนับก็ไม่ต้องตัดสินอะไร เช่นซ้อมคนเดียว
-            if (state.Value != MatchState.Playing) return;
+            // ยังไม่ได้เริ่มนับรอบ เช่นซ้อมคนเดียวหรือรอเพื่อนเข้ามา
+            //
+            // ตรงนี้เคยแค่ return เฉย ๆ ซึ่งทำให้คนที่ตายติดค้างอยู่ในสถานะตกรอบถาวร
+            // เพราะการปลุกกลับมาเกิดตอนจบรอบเท่านั้น แต่รอบไม่มีวันจบเมื่อยังไม่ได้เริ่ม
+            // ผลคือตายครั้งเดียวแล้วเล่นต่อไม่ได้เลย ต้องออกห้องแล้วเข้าใหม่
+            if (state.Value != MatchState.Playing)
+            {
+                StartCoroutine(ReviveAfterDelay(victim));
+                return;
+            }
 
             List<PlayerHealth> alive = GetAlivePlayers();
             if (alive.Count > 1) return;
@@ -116,6 +124,22 @@ namespace MagicDrawing
             winnerClientId.Value = winner;
 
             StartCoroutine(RestartAfterDelay());
+        }
+
+        /// <summary>
+        /// ปลุกคนที่ตายกลับมาเล่นต่อ ใช้ตอนที่ยังไม่ได้เริ่มนับรอบ
+        /// จะได้ซ้อมยิงเวทคนเดียวได้โดยไม่ต้องออกห้องแล้วเข้าใหม่ทุกครั้งที่ตาย
+        /// </summary>
+        private IEnumerator ReviveAfterDelay(PlayerHealth victim)
+        {
+            yield return new WaitForSeconds(restartDelay);
+
+            // ระหว่างรอ อาจมีเพื่อนเข้ามาจนรอบเริ่มไปแล้ว
+            // ถ้าเป็นแบบนั้นให้ปล่อยไปตามกติกาปกติ ไม่ปลุกกลางรอบ
+            if (state.Value == MatchState.Playing) yield break;
+
+            if (victim != null) victim.ReviveServer();
+            RefreshAliveCount();
         }
 
         private IEnumerator RestartAfterDelay()
