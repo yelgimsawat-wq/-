@@ -79,13 +79,33 @@ public class OnlineUI2D : MonoBehaviour
         catch (Exception e)
         {
             session = null;
-            status = "สร้างห้องไม่สำเร็จ: " + e.Message;
+            status = "สร้างห้องไม่สำเร็จ: " + Explain(e);
             Debug.LogException(e);
         }
         finally
         {
             busy = false;
         }
+    }
+
+    /// <summary>
+    /// แปลงข้อผิดพลาดให้เป็นข้อความที่บอกทางแก้ได้
+    ///
+    /// Unity คืนคำว่า "An unknown error occurred" มาเวลาบริการ Lobby หรือ Relay
+    /// ยังไม่ถูกเปิดใช้งานในบัญชี ซึ่งเป็นสาเหตุที่พบบ่อยที่สุดแต่ข้อความไม่ได้บอก
+    /// ผู้เล่นจะนั่งงงว่าโค้ดพังตรงไหน ทั้งที่ต้องไปกดเปิดบริการบนเว็บ
+    /// </summary>
+    private static string Explain(Exception e)
+    {
+        string message = e.Message ?? "";
+
+        if (message.Contains("unknown error"))
+        {
+            return "ยังไม่ได้เปิดบริการ Lobby กับ Relay ในบัญชี Unity Cloud "
+                 + "— เปิดที่ cloud.unity.com เลือกโปรเจกต์นี้ แล้วเปิดสองบริการนั้น";
+        }
+
+        return message;
     }
 
     private async Task JoinAsync()
@@ -115,7 +135,7 @@ public class OnlineUI2D : MonoBehaviour
         catch (Exception e)
         {
             session = null;
-            status = "เข้าห้องไม่สำเร็จ: " + e.Message;
+            status = "เข้าห้องไม่สำเร็จ: " + Explain(e);
             Debug.LogException(e);
         }
         finally

@@ -1,0 +1,13 @@
+fileFormatVersion: 2
+guid: 3c40097e61f149c4298887d78f2ab599
+TextScriptImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 41759
+  packageName: Foliage 2D
+  packageVersion: 1.4
+  assetPath: Assets/Foliage2D/Example/Scenes/Parallax.txt
+  uploadId: 350150

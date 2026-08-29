@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 68ec5fe2c49d1e2429553402240fcb62
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 4300000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 41759
+  packageName: Foliage 2D
+  packageVersion: 1.4
+  assetPath: Assets/Foliage2D/Example/Prefabs/FoliageMeshes/Flower_04-Mesh.asset
+  uploadId: 350150

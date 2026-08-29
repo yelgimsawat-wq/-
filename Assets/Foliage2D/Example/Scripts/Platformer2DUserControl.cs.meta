@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: c3d7b34a3bb2d4e4b926e7e729d3d410
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 41759
+  packageName: Foliage 2D
+  packageVersion: 1.4
+  assetPath: Assets/Foliage2D/Example/Scripts/Platformer2DUserControl.cs
+  uploadId: 350150

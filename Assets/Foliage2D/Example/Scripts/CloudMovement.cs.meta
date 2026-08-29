@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: fbf4b2fa3d481734fbdc5b7a40289ae9
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 41759
+  packageName: Foliage 2D
+  packageVersion: 1.4
+  assetPath: Assets/Foliage2D/Example/Scripts/CloudMovement.cs
+  uploadId: 350150

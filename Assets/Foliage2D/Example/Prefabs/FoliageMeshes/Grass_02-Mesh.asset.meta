@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 01a1d71a612a77448a931dab8e406bfd
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 4300000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 41759
+  packageName: Foliage 2D
+  packageVersion: 1.4
+  assetPath: Assets/Foliage2D/Example/Prefabs/FoliageMeshes/Grass_02-Mesh.asset
+  uploadId: 350150

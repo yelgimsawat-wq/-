@@ -803,15 +803,30 @@ public static class MagicGameSetup
         var go = new GameObject(name, typeof(Image), typeof(InputField));
         go.transform.SetParent(parent, false);
 
-        go.GetComponent<Image>().color = new Color(0.16f, 0.18f, 0.26f);
+        // ใช้กรอบลายมือแบบเดียวกับปุ่ม ไม่งั้นช่องกรอกจะเป็นสี่เหลี่ยมทึบสีเข้ม
+        // อันเดียวที่ขัดกับของอื่นทั้งหน้า
+        var background = go.GetComponent<Image>();
+        Sprite frame = NextSketchButtonSprite();
+
+        if (frame != null)
+        {
+            background.sprite = frame;
+            background.type = Image.Type.Sliced;
+            background.color = Color.white;
+        }
+        else
+        {
+            background.color = new Color(0.16f, 0.18f, 0.26f);
+        }
 
         var element = go.AddComponent<LayoutElement>();
         element.minHeight = 60f;
         element.preferredHeight = 60f;
 
+        // พื้นขาวแล้ว ตัวหนังสือต้องเข้ม ตัวบอกใบ้จางกว่าค่าที่พิมพ์จริง
         Text placeholderText = CreateText(go.transform, "Placeholder", placeholder, 24,
-            new Color(0.55f, 0.58f, 0.66f));
-        Text valueText = CreateText(go.transform, "Text", "", 28, Color.white, FontStyle.Bold);
+            new Color(0.55f, 0.57f, 0.62f));
+        Text valueText = CreateText(go.transform, "Text", "", 28, InkColor, FontStyle.Bold);
 
         foreach (Text t in new[] { placeholderText, valueText })
         {

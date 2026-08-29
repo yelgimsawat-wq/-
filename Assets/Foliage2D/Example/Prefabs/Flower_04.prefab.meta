@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 5194d1bafcec607449328e1f13de4b60
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 41759
+  packageName: Foliage 2D
+  packageVersion: 1.4
+  assetPath: Assets/Foliage2D/Example/Prefabs/Flower_04.prefab
+  uploadId: 350150

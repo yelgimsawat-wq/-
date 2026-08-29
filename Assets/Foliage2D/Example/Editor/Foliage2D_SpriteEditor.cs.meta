@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: be265434b35a3b84b8aba041b0e05169
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 41759
+  packageName: Foliage 2D
+  packageVersion: 1.4
+  assetPath: Assets/Foliage2D/Example/Editor/Foliage2D_SpriteEditor.cs
+  uploadId: 350150

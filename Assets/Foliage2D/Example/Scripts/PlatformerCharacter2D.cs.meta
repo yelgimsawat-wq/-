@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: d08f91df3bd212f429df17f53ce2f364
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 41759
+  packageName: Foliage 2D
+  packageVersion: 1.4
+  assetPath: Assets/Foliage2D/Example/Scripts/PlatformerCharacter2D.cs
+  uploadId: 350150

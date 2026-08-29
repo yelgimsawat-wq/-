@@ -1,0 +1,13 @@
+fileFormatVersion: 2
+guid: 42aabb16f6501284ab45b4e7cd4cc5d4
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 41759
+  packageName: Foliage 2D
+  packageVersion: 1.4
+  assetPath: Assets/Foliage2D/Example/Animations/Windmill/Windmill.controller
+  uploadId: 350150
