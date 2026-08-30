@@ -123,6 +123,14 @@ namespace MagicDrawing
         /// </summary>
         public bool IsCasting => phase != CastPhase.Idle;
 
+        /// <summary>
+        /// ตัวละครของเราเองในเครื่องนี้ ใช้ให้เมนูหยุดเกมถามว่ากำลังร่ายอยู่ไหม
+        ///
+        /// ตั้งค่าใน Update ไม่ใช่ Awake เพราะตอน Awake ยังไม่รู้ว่าใครเป็นเจ้าของ
+        /// ตัวละครยังไม่ถูก spawn เข้าเครือข่าย IsOwner จึงเป็น false ของทุกคน
+        /// </summary>
+        public static SpellDrawing LocalOwner { get; private set; }
+
         private SpellCastResult pendingSpell;
         private Vector2 aimDirection = Vector2.right;
         private string statusMessage = "";
@@ -139,6 +147,15 @@ namespace MagicDrawing
         {
             // ตัวละครของคนอื่นไม่รับปุ่ม ไม่งั้นวาดทีเดียวร่ายพร้อมกันทุกตัว
             if (caster == null || !caster.IsOwner) return;
+
+            LocalOwner = this;
+
+            // เปิดเมนูอยู่ก็ไม่ต้องรับปุ่ม ไม่งั้นกดปุ่มในเมนูแล้วเผลอวาดเวทไปด้วย
+            if (PauseMenu.IsOpenNow)
+            {
+                UpdateMovementLock();
+                return;
+            }
 
             if (drawCamera == null)
             {
@@ -512,6 +529,8 @@ namespace MagicDrawing
             if (player != null) player.MovementLocked = false;
             ClearStrokes();
             ResetToIdle();
+
+            if (LocalOwner == this) LocalOwner = null;
         }
 
         // ---------- อ่านอินพุต ----------

@@ -365,6 +365,10 @@ public static class MagicGameSetup
         GameObject roomPanel = CreatePanel(canvasGo.transform, "RoomPanel", new Vector2(560f, 620f));
         CreateMicPanel(canvasGo.transform, ui);
 
+        // เมนู Esc ต้องอยู่ท้ายสุดของแคนวาส จะได้วาดทับทุกอย่าง
+        // ถ้าสร้างก่อน ของที่สร้างทีหลังจะไปวาดทับเมนูแทน
+        CreatePauseMenu(canvasGo.transform, ui);
+
         // ---- หน้าเข้าห้อง ----
         CreateText(joinPanel.transform, "Title", "วงเวทออนไลน์", 46, TitleColor, FontStyle.Bold);
         CreateText(joinPanel.transform, "Subtitle",
@@ -2261,5 +2265,196 @@ public static class MagicGameSetup
         template.SetActive(false);
 
         return dropdown;
+    }
+    /// <summary>
+    /// เมนูกลางจอที่เปิดด้วย Esc รวมรหัสห้อง ปุ่มออก ตั้งค่า และวิธีเล่นไว้ที่เดียว
+    /// เดิมข้อมูลพวกนี้ลอยอยู่มุมจอ ซึ่งบังพื้นที่เล่นและกดโดนโดยไม่ตั้งใจได้ง่าย
+    /// </summary>
+    private static void CreatePauseMenu(Transform canvas, OnlineUI2D ui)
+    {
+        // ฉากหลังมืดคลุมทั้งจอ กดทะลุไปโดนเกมข้างหลังไม่ได้
+        var root = new GameObject("PauseRoot", typeof(Image));
+        root.transform.SetParent(canvas, false);
+        root.GetComponent<Image>().color = new Color(0.04f, 0.05f, 0.08f, 0.75f);
+        StretchToParent(root.GetComponent<RectTransform>());
+
+        GameObject card = CreatePanel(root.transform, "PauseCard", new Vector2(760f, 620f));
+
+        Text title = CreateText(card.transform, "Title", "", 36, TitleColor, FontStyle.Bold);
+        AddLoc(title, "pause.title");
+
+        Text roomLabel = CreateText(card.transform, "RoomLabel", "", 20, TextColor);
+
+        // ---------- หน้าหลัก ----------
+
+        GameObject mainPage = CreateColumn(card.transform, "MainPage", 0f, 1f);
+
+        Button resume = CreateLocButton(mainPage.transform, "ResumeButton", "pause.resume");
+        Button settings = CreateLocButton(mainPage.transform, "SettingsButton", "pause.settings");
+        Button tutorial = CreateLocButton(mainPage.transform, "TutorialButton", "pause.tutorial");
+        Button leave = CreateLocButton(mainPage.transform, "LeaveButton", "pause.leave");
+
+        // ---------- หน้าตั้งค่า ----------
+
+        GameObject settingsPage = CreateColumn(card.transform, "SettingsPage", 0f, 1f);
+
+        Text langCaption = CreateText(settingsPage.transform, "LangCaption", "", 20, TextColor);
+        AddLoc(langCaption, "settings.language");
+
+        Button langButton = CreateButton(settingsPage.transform, "LanguageButton", "ไทย / English");
+        Text langValue = CreateText(settingsPage.transform, "LangValue", "", 22, TitleColor, FontStyle.Bold);
+
+        Text volCaption = CreateText(settingsPage.transform, "VolumeCaption", "", 20, TextColor);
+        AddLoc(volCaption, "settings.volume");
+
+        Slider volumeSlider = CreateSlider(settingsPage.transform, "VolumeSlider");
+        var volElement = volumeSlider.gameObject.AddComponent<LayoutElement>();
+        volElement.minHeight = 30f;
+        volElement.preferredHeight = 30f;
+
+        Text volValue = CreateText(settingsPage.transform, "VolumeValue", "100 %", 22, TitleColor, FontStyle.Bold);
+
+        var settingsPanel = settingsPage.AddComponent<MagicDrawing.GameSettingsPanel>();
+        var settingsSo = new SerializedObject(settingsPanel);
+        settingsSo.FindProperty("languageButton").objectReferenceValue = langButton;
+        settingsSo.FindProperty("languageValue").objectReferenceValue = langValue;
+        settingsSo.FindProperty("volumeSlider").objectReferenceValue = volumeSlider;
+        settingsSo.FindProperty("volumeValue").objectReferenceValue = volValue;
+        settingsSo.ApplyModifiedPropertiesWithoutUndo();
+
+        // ---------- หน้าวิธีเล่น ----------
+
+        GameObject tutorialPage = CreateColumn(card.transform, "TutorialPage", 0f, 1f);
+
+        var pictureGo = new GameObject("Picture", typeof(Image));
+        pictureGo.transform.SetParent(tutorialPage.transform, false);
+
+        var picture = pictureGo.GetComponent<Image>();
+        picture.preserveAspect = true;
+
+        var pictureElement = pictureGo.AddComponent<LayoutElement>();
+        pictureElement.minHeight = 240f;
+        pictureElement.preferredHeight = 240f;
+
+        Text tutTitle = CreateText(tutorialPage.transform, "TutTitle", "", 26, TitleColor, FontStyle.Bold);
+        Text tutBody = CreateText(tutorialPage.transform, "TutBody", "", 20, TextColor);
+
+        // เนื้อหาบางหน้ายาวหลายบรรทัด ต้องเผื่อที่ไว้ ไม่งั้นตัวหนังสือถูกตัด
+        var bodyElement = tutBody.GetComponent<LayoutElement>();
+        if (bodyElement != null)
+        {
+            bodyElement.minHeight = 110f;
+            bodyElement.preferredHeight = 110f;
+        }
+        tutBody.alignment = TextAnchor.UpperCenter;
+
+        // แถวปุ่มเปลี่ยนหน้า
+        var navRow = new GameObject("NavRow", typeof(RectTransform));
+        navRow.transform.SetParent(tutorialPage.transform, false);
+
+        var navLayout = navRow.AddComponent<HorizontalLayoutGroup>();
+        navLayout.spacing = 12f;
+        navLayout.childAlignment = TextAnchor.MiddleCenter;
+        navLayout.childControlWidth = true;
+        navLayout.childControlHeight = true;
+        navLayout.childForceExpandWidth = true;
+        navLayout.childForceExpandHeight = true;
+
+        var navElement = navRow.AddComponent<LayoutElement>();
+        navElement.minHeight = 56f;
+        navElement.preferredHeight = 56f;
+
+        Button prev = CreateLocButton(navRow.transform, "PrevButton", "tut.prev");
+        Text pageLabel = CreateText(navRow.transform, "PageLabel", "1 / 5", 20, TextColor);
+        Button next = CreateLocButton(navRow.transform, "NextButton", "tut.next");
+
+        var tutorialPanel = tutorialPage.AddComponent<MagicDrawing.TutorialPanel>();
+        WireTutorial(tutorialPanel, picture, tutTitle, tutBody, pageLabel, next, prev);
+
+        // ---------- ปุ่มย้อนกลับ ----------
+
+        Button back = CreateLocButton(card.transform, "BackButton", "pause.back");
+
+        // ---------- ผูกเข้าตัวคุมเมนู ----------
+
+        var pause = root.AddComponent<MagicDrawing.PauseMenu>();
+        var pauseSo = new SerializedObject(pause);
+        pauseSo.FindProperty("root").objectReferenceValue = root;
+        pauseSo.FindProperty("mainPage").objectReferenceValue = mainPage;
+        pauseSo.FindProperty("settingsPage").objectReferenceValue = settingsPage;
+        pauseSo.FindProperty("tutorialPage").objectReferenceValue = tutorialPage;
+        pauseSo.FindProperty("resumeButton").objectReferenceValue = resume;
+        pauseSo.FindProperty("settingsButton").objectReferenceValue = settings;
+        pauseSo.FindProperty("tutorialButton").objectReferenceValue = tutorial;
+        pauseSo.FindProperty("leaveButton").objectReferenceValue = leave;
+        pauseSo.FindProperty("backButton").objectReferenceValue = back;
+        pauseSo.FindProperty("roomLabel").objectReferenceValue = roomLabel;
+        pauseSo.ApplyModifiedPropertiesWithoutUndo();
+
+        // ปิดไว้ก่อน เปิดเมื่อกด Esc เท่านั้น
+        root.SetActive(false);
+    }
+
+    /// <summary>ใส่เนื้อหาห้าหน้าพร้อมภาพประกอบที่วาดด้วยโค้ด</summary>
+    private static void WireTutorial(
+        MagicDrawing.TutorialPanel panel, Image picture,
+        Text title, Text body, Text pageLabel, Button next, Button prev)
+    {
+        Sprite[] art = TutorialArtGenerator.CreateAll();
+
+        string[] titleKeys =
+        {
+            "tut.draw.title", "tut.shapes.title", "tut.shield.title",
+            "tut.fire.title", "tut.counter.title",
+        };
+
+        string[] bodyKeys =
+        {
+            "tut.draw.body", "tut.shapes.body", "tut.shield.body",
+            "tut.fire.body", "tut.counter.body",
+        };
+
+        var so = new SerializedObject(panel);
+        so.FindProperty("picture").objectReferenceValue = picture;
+        so.FindProperty("titleLabel").objectReferenceValue = title;
+        so.FindProperty("bodyLabel").objectReferenceValue = body;
+        so.FindProperty("pageLabel").objectReferenceValue = pageLabel;
+        so.FindProperty("nextButton").objectReferenceValue = next;
+        so.FindProperty("prevButton").objectReferenceValue = prev;
+
+        SerializedProperty pages = so.FindProperty("pages");
+        pages.arraySize = titleKeys.Length;
+
+        for (int i = 0; i < titleKeys.Length; i++)
+        {
+            SerializedProperty page = pages.GetArrayElementAtIndex(i);
+            page.FindPropertyRelative("Picture").objectReferenceValue = i < art.Length ? art[i] : null;
+            page.FindPropertyRelative("TitleKey").stringValue = titleKeys[i];
+            page.FindPropertyRelative("BodyKey").stringValue = bodyKeys[i];
+        }
+
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>ปุ่มที่ข้อความแปลตามภาษาที่เลือก</summary>
+    private static Button CreateLocButton(Transform parent, string name, string key)
+    {
+        Button button = CreateButton(parent, name, "");
+
+        Text label = button.GetComponentInChildren<Text>();
+        if (label != null) AddLoc(label, key);
+
+        return button;
+    }
+
+    /// <summary>ผูกป้ายเข้ากับกุญแจในตารางแปล</summary>
+    private static void AddLoc(Text label, string key)
+    {
+        if (label == null) return;
+
+        var loc = label.gameObject.AddComponent<MagicDrawing.LocalizedText>();
+        var so = new SerializedObject(loc);
+        so.FindProperty("key").stringValue = key;
+        so.ApplyModifiedPropertiesWithoutUndo();
     }
 }

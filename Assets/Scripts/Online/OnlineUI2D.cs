@@ -385,6 +385,12 @@ public class OnlineUI2D : MonoBehaviour
 
     private void OnLeaveClicked() => _ = LeaveAsync();
 
+    /// <summary>รหัสห้องที่อยู่ตอนนี้ ให้เมนูหยุดเกมเอาไปแสดง</summary>
+    public string RoomCode => session != null ? session.Code : "-";
+
+    /// <summary>ให้เมนูหยุดเกมสั่งออกจากห้องได้ โดยไม่ต้องมีปุ่มของตัวเองในฉาก</summary>
+    public void RequestLeave() => _ = LeaveAsync();
+
     private void OnCopyClicked()
     {
         if (session == null) return;
@@ -427,7 +433,9 @@ public class OnlineUI2D : MonoBehaviour
         // อยู่ในสนามรบแล้วย่อเหลือแถบเล็ก ไม่บังพื้นที่เล่น
         bool inMenu = !connected;
 
-        SetActive(compactPanel, inGame);
+        // ไม่โชว์แถบมุมซ้ายบนแล้ว ข้อมูลห้องและปุ่มออกย้ายไปอยู่ในเมนูที่กด Esc เปิด
+        // แถบลอยมุมจอบังพื้นที่เล่นและกดโดนโดยไม่ตั้งใจได้ง่าย
+        SetActive(compactPanel, false);
         SetActive(profilePanel, inMenu && !profileConfirmed);
         // หน้าตั้งค่าไมค์บังหน้าเข้าห้องไว้ชั่วคราว ไม่ให้ซ้อนกันจนกดผิด
         // และปิดเองเมื่อออกจากเมนู เช่นตอนเข้าห้องสำเร็จ
