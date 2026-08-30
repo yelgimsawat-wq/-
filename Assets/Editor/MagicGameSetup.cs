@@ -382,22 +382,20 @@ public static class MagicGameSetup
         AddLoc(codeInput.placeholder as Text, "menu.codePlaceholder");
 
         Button joinButton = CreateLocButton(joinPanel.transform, "JoinButton", "menu.join");
-        Button micButton = CreateLocButton(joinPanel.transform, "MicButton", "menu.mic");
+        Button editProfileButton = CreateLocButton(joinPanel.transform, "EditProfileButton", "menu.editCharacter");
+
+        // ไมค์กับภาษาเคยเป็นสองปุ่มแยกกันบนหน้านี้ ยุบเหลือปุ่มตั้งค่าปุ่มเดียว
+        // ทั้งสองอย่างคือการตั้งค่าเหมือนกัน แยกไว้ทำให้หน้าเมนูยาวโดยไม่จำเป็น
+        Button settingsButton = CreateSettingsButton(joinPanel.transform);
 
         // ผูกตรงนี้เลย ไม่ส่งต่อไปเมธอดผูกรวม เพราะเมธอดนั้นรับพารามิเตอร์ยาวมากอยู่แล้ว
         // เพิ่มอีกตัวจะยิ่งอ่านยากและพลาดง่ายเวลาสลับลำดับ
-        var micButtonSo = new SerializedObject(ui);
-        micButtonSo.FindProperty("openMicButton").objectReferenceValue = micButton;
-        micButtonSo.ApplyModifiedPropertiesWithoutUndo();
-        Button editProfileButton = CreateLocButton(joinPanel.transform, "EditProfileButton", "menu.editCharacter");
-
-        // ปุ่มสลับภาษาวางไว้ให้เห็นตั้งแต่หน้าแรก ไม่ต้องเข้าห้องแล้วกด Esc ก่อน
         //
-        // คนที่อ่านไทยไม่ออกต้องเปลี่ยนภาษาได้ตั้งแต่ยังไม่รู้ว่าปุ่มไหนคืออะไร
-        // ถ้าซ่อนไว้ในเมนู Esc เขาจะต้องเดาทางผ่านเมนูภาษาที่อ่านไม่ออกก่อน
-        // ข้อความบนปุ่มตัวคุมเป็นคนใส่ให้เอง ตรงนี้จึงปล่อยว่างไว้
-        CreateButton(joinPanel.transform, "LanguageButton", "")
-            .gameObject.AddComponent<MagicDrawing.LanguageToggleButton>();
+        // ช่องใน OnlineUI2D ยังชื่อ openMicButton ตามเดิม เปลี่ยนชื่อช่องไม่ได้
+        // เพราะ Unity จับคู่ค่าที่ผูกไว้ในฉากด้วยชื่อช่อง เปลี่ยนแล้วของที่ผูกไว้จะหลุด
+        var micButtonSo = new SerializedObject(ui);
+        micButtonSo.FindProperty("openMicButton").objectReferenceValue = settingsButton;
+        micButtonSo.ApplyModifiedPropertiesWithoutUndo();
 
         // ---- หน้าในห้อง ----
         Text roleText = CreateText(roomPanel.transform, "RoleText", "คุณเป็นเจ้าของห้อง", 26, TitleColor, FontStyle.Bold);
@@ -727,7 +725,13 @@ public static class MagicGameSetup
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
         layout.childControlWidth = true;
-        layout.childControlHeight = false;
+
+        // ต้องคุมความสูงของลูกด้วย ไม่ใช่แค่ความกว้าง
+        //
+        // ถ้าไม่คุม ทุกชิ้นจะสูง 100 ตามค่าเริ่มต้นของ RectTransform
+        // ทั้งที่ปุ่มขอไว้ 56 ผลคือปุ่มบวมเกินจริง ทับกันเอง และรวมแล้วยาว
+        // เกินพื้นหลังการ์ดจนของล้นออกไปนอกกรอบ
+        layout.childControlHeight = true;
 
         if (autoHeight)
         {
@@ -1358,6 +1362,13 @@ public static class MagicGameSetup
 
     private static void CreateEventSystem()
     {
+        // Unity รองรับ EventSystem ได้ฉากละตัวเดียว มีหลายตัวแล้วมันจะเตือน
+        // และปิดตัวที่เกินทิ้ง ทำให้การกดปุ่มเดาไม่ถูกว่าตัวไหนกำลังทำงาน
+        //
+        // ต้องเช็คก่อนสร้าง เพราะคำสั่งติดตั้งฉากถูกสั่งซ้ำได้หลายรอบ
+        // รอบก่อนหน้าสร้างไว้แล้วรอบนี้สร้างอีกก็จะกองกันเรื่อย ๆ
+        if (Object.FindFirstObjectByType<EventSystem>(FindObjectsInactive.Include) != null) return;
+
         var go = new GameObject("EventSystem");
         go.AddComponent<EventSystem>();
         // โปรเจกต์ตั้ง Input System แบบใหม่ ต้องใช้โมดูลของแพ็กเกจนั้น
@@ -2136,12 +2147,17 @@ public static class MagicGameSetup
     {
         GameObject panel = CreatePanel(canvas, "MicPanel", new Vector2(620f, 560f));
 
-        CreateText(panel.transform, "Title", "ตั้งค่าไมโครโฟน", 34, TitleColor, FontStyle.Bold);
-        CreateText(panel.transform, "Caption", "เลือกไมค์ที่จะใช้", 20, TextColor);
+        AddLoc(CreateText(panel.transform, "Title", "", 34, TitleColor, FontStyle.Bold), "settings.title");
+
+        // ภาษาอยู่บนสุด เพราะถ้าอ่านหัวข้ออื่นไม่ออก ต้องเจอธงก่อนเป็นอย่างแรก
+        AddLoc(CreateText(panel.transform, "LanguageCaption", "", 20, TextColor), "settings.language");
+        CreateLanguageRow(panel.transform);
+
+        AddLoc(CreateText(panel.transform, "Caption", "", 20, TextColor), "settings.micDevice");
 
         Dropdown dropdown = CreateDropdown(panel.transform, "DeviceDropdown");
 
-        CreateText(panel.transform, "TestCaption", "ทดสอบเสียง", 20, TextColor);
+        AddLoc(CreateText(panel.transform, "TestCaption", "", 20, TextColor), "settings.micTest");
 
         // หลอดทดสอบวางแนวนอน อ่านง่ายกว่าแนวตั้งเมื่ออยู่ในการ์ด
         var track = new GameObject("LevelTrack", typeof(Image));
@@ -2174,7 +2190,7 @@ public static class MagicGameSetup
         }
         status.alignment = TextAnchor.UpperCenter;
 
-        Button close = CreateButton(panel.transform, "CloseMicButton", "เสร็จแล้ว กลับไปเข้าห้อง");
+        Button close = CreateLocButton(panel.transform, "CloseMicButton", "settings.done");
 
         var test = panel.AddComponent<MagicDrawing.MicTestPanel>();
         var testSo = new SerializedObject(test);
@@ -2463,6 +2479,224 @@ public static class MagicGameSetup
         return button;
     }
 
+    /// <summary>
+    /// อัปเดตเมนูในฉากที่มีอยู่ให้ตรงกับตัวสร้างฉากรุ่นล่าสุด
+    ///
+    /// มีแยกจากการติดตั้งฉากอัตโนมัติ เพราะการติดตั้งใหม่จะสร้างฉากสนามรบทับด้วย
+    /// ซึ่งลบแมพที่ปั้นไว้ทิ้ง คำสั่งนี้แตะเฉพาะเมนู ไม่ยุ่งกับฉากสนามรบเลย
+    /// </summary>
+    [MenuItem("Tools/เกมวาดวงเวท/อัปเดตเมนูในฉากที่มีอยู่", priority = 1)]
+    public static void UpgradeExistingMenu()
+    {
+        Scene scene = EditorSceneManager.GetSceneByPath(LobbyScenePath);
+        if (!scene.isLoaded) scene = EditorSceneManager.OpenScene(LobbyScenePath, OpenSceneMode.Single);
+
+        OnlineUI2D ui = Object.FindFirstObjectByType<OnlineUI2D>(FindObjectsInactive.Include);
+        if (ui == null)
+        {
+            Debug.LogError("[อัปเดตเมนู] ไม่เจอ OnlineUI2D ในฉาก");
+            return;
+        }
+
+        Transform joinPanel = FindByName(scene, "JoinPanel");
+        Transform micPanel = FindByName(scene, "MicPanel");
+        if (joinPanel == null || micPanel == null)
+        {
+            Debug.LogError("[อัปเดตเมนู] ไม่เจอ JoinPanel หรือ MicPanel");
+            return;
+        }
+
+        // ---- หน้าเข้าห้อง: ยุบปุ่มไมค์กับปุ่มภาษาเหลือปุ่มตั้งค่าปุ่มเดียว ----
+        DestroyChild(joinPanel, "MicButton");
+        DestroyChild(joinPanel, "LanguageButton");
+
+        if (joinPanel.Find("SettingsButton") == null)
+        {
+            Button settings = CreateSettingsButton(joinPanel);
+
+            var uiSo = new SerializedObject(ui);
+            uiSo.FindProperty("openMicButton").objectReferenceValue = settings;
+            uiSo.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        // ---- หน้าตั้งค่า: เติมแถวธงและผูกคำแปลของหัวข้อ ----
+        EnsureLoc(micPanel.Find("Title"), "settings.title");
+        EnsureLoc(micPanel.Find("Caption"), "settings.micDevice");
+        EnsureLoc(micPanel.Find("TestCaption"), "settings.micTest");
+        EnsureLoc(micPanel.Find("CloseMicButton"), "settings.done");
+
+        if (micPanel.Find("LanguageRow") == null)
+        {
+            Text caption = CreateText(micPanel, "LanguageCaption", "", 20, TextColor);
+            AddLoc(caption, "settings.language");
+
+            GameObject row = CreateLanguageRow(micPanel);
+
+            // ภาษาต้องอยู่บนสุดถัดจากหัวข้อ คนที่อ่านไม่ออกจะได้เจอธงก่อน
+            caption.transform.SetSiblingIndex(1);
+            row.transform.SetSiblingIndex(2);
+        }
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+
+        Debug.Log("[อัปเดตเมนู] เรียบร้อย ฉากสนามรบไม่ถูกแตะต้อง");
+    }
+
+    private static Transform FindByName(Scene scene, string name)
+    {
+        foreach (GameObject root in scene.GetRootGameObjects())
+            foreach (Transform tr in root.GetComponentsInChildren<Transform>(true))
+                if (tr.name == name) return tr;
+
+        return null;
+    }
+
+    private static void DestroyChild(Transform parent, string name)
+    {
+        Transform child = parent.Find(name);
+        if (child != null) Object.DestroyImmediate(child.gameObject);
+    }
+
+    /// <summary>ผูกคำแปลโดยไม่ซ้ำของเดิม ใช้กับฉากที่เคยผูกไปแล้วบางส่วน</summary>
+    private static void EnsureLoc(Transform target, string key)
+    {
+        if (target == null) return;
+
+        Text label = target.GetComponent<Text>();
+        if (label == null) label = target.GetComponentInChildren<Text>(true);
+        if (label == null) return;
+
+        var existing = label.GetComponent<MagicDrawing.LocalizedText>();
+        if (existing != null)
+        {
+            var so = new SerializedObject(existing);
+            so.FindProperty("key").stringValue = key;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            return;
+        }
+
+        AddLoc(label, key);
+    }
+
+    /// <summary>
+    /// ปุ่มเปิดหน้าตั้งค่า มีฟันเฟืองนำหน้าข้อความ
+    ///
+    /// ฟันเฟืองเป็นสัญลักษณ์ที่คนรู้จักกันทั่วโลกว่าแปลว่าตั้งค่า
+    /// ผู้เล่นที่อ่านข้อความบนปุ่มไม่ออกจึงยังเดาถูกว่าปุ่มนี้ทำอะไร
+    /// </summary>
+    private static Button CreateSettingsButton(Transform parent)
+    {
+        Button button = CreateLocButton(parent, "SettingsButton", "settings.title");
+
+        var iconGo = new GameObject("GearIcon", typeof(Image));
+        iconGo.transform.SetParent(button.transform, false);
+
+        var icon = iconGo.GetComponent<Image>();
+        icon.sprite = IconArtGenerator.GearIcon();
+        icon.preserveAspect = true;
+
+        // ไอคอนต้องไม่กินคลิก ไม่งั้นกดโดนตรงฟันเฟืองแล้วปุ่มไม่ทำงาน
+        icon.raycastTarget = false;
+
+        var rect = iconGo.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 0.5f);
+        rect.anchorMax = new Vector2(0f, 0.5f);
+        rect.pivot = new Vector2(0f, 0.5f);
+        rect.sizeDelta = new Vector2(30f, 30f);
+        rect.anchoredPosition = new Vector2(24f, 0f);
+
+        return button;
+    }
+
+    /// <summary>แถวธงสองผืนสำหรับเลือกภาษา</summary>
+    private static GameObject CreateLanguageRow(Transform parent)
+    {
+        var row = new GameObject("LanguageRow", typeof(RectTransform));
+        row.transform.SetParent(parent, false);
+
+        var layout = row.AddComponent<HorizontalLayoutGroup>();
+        layout.spacing = 18f;
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = true;
+
+        var element = row.AddComponent<LayoutElement>();
+        element.minHeight = 78f;
+        element.preferredHeight = 78f;
+
+        Image thaiFlag, englishFlag;
+        Graphic thaiMark, englishMark;
+
+        Button thai = CreateFlagButton(row.transform, "ThaiButton",
+            IconArtGenerator.ThaiFlag(), out thaiFlag, out thaiMark);
+        Button english = CreateFlagButton(row.transform, "EnglishButton",
+            IconArtGenerator.EnglishFlag(), out englishFlag, out englishMark);
+
+        var picker = row.AddComponent<MagicDrawing.LanguagePicker>();
+        var so = new SerializedObject(picker);
+        so.FindProperty("thaiButton").objectReferenceValue = thai;
+        so.FindProperty("englishButton").objectReferenceValue = english;
+        so.FindProperty("thaiFlag").objectReferenceValue = thaiFlag;
+        so.FindProperty("englishFlag").objectReferenceValue = englishFlag;
+        so.FindProperty("thaiHighlight").objectReferenceValue = thaiMark;
+        so.FindProperty("englishHighlight").objectReferenceValue = englishMark;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        return row;
+    }
+
+    /// <summary>ปุ่มธงหนึ่งผืน พร้อมกรอบเน้นที่เปิดปิดได้</summary>
+    private static Button CreateFlagButton(
+        Transform parent, string name, Sprite flagSprite, out Image flag, out Graphic highlight)
+    {
+        Sprite square = AssetDatabase.LoadAssetAtPath<Sprite>(SquareTexturePath);
+
+        var go = new GameObject(name, typeof(Image), typeof(Button));
+        go.transform.SetParent(parent, false);
+
+        // พื้นหลังปุ่มต้องเปิดอยู่เสมอ เพราะเป็นตัวรับคลิก
+        // ถ้าเอากรอบเน้นมาเป็นตัวรับคลิกแล้วปิดมันตอนไม่ได้เลือก ปุ่มจะกดไม่ได้
+        var background = go.GetComponent<Image>();
+        background.sprite = square;
+        background.color = new Color(0.16f, 0.18f, 0.24f);
+
+        var button = go.GetComponent<Button>();
+        button.targetGraphic = background;
+
+        var element = go.AddComponent<LayoutElement>();
+        element.minHeight = 70f;
+        element.preferredHeight = 70f;
+
+        var markGo = new GameObject("Highlight", typeof(Image));
+        markGo.transform.SetParent(go.transform, false);
+        StretchToParent(markGo.GetComponent<RectTransform>());
+
+        var mark = markGo.GetComponent<Image>();
+        mark.sprite = square;
+        mark.color = AccentColor;
+        mark.raycastTarget = false;
+        highlight = mark;
+
+        var flagGo = new GameObject("Flag", typeof(Image));
+        flagGo.transform.SetParent(go.transform, false);
+
+        flag = flagGo.GetComponent<Image>();
+        flag.sprite = flagSprite;
+        flag.preserveAspect = true;
+        flag.raycastTarget = false;
+
+        // เว้นขอบให้เห็นกรอบเน้นที่อยู่ข้างหลังโผล่ออกมารอบธง
+        var flagRect = flagGo.GetComponent<RectTransform>();
+        StretchToParent(flagRect);
+        flagRect.offsetMin = new Vector2(8f, 8f);
+        flagRect.offsetMax = new Vector2(-8f, -8f);
+
+        return button;
+    }
+
     /// <summary>ผูกป้ายเข้ากับกุญแจในตารางแปล</summary>
     private static void AddLoc(Text label, string key)
     {
@@ -2472,5 +2706,12 @@ public static class MagicGameSetup
         var so = new SerializedObject(loc);
         so.FindProperty("key").stringValue = key;
         so.ApplyModifiedPropertiesWithoutUndo();
+
+        // เก็บข้อความจริงไว้ในฉากด้วย ไม่ปล่อยว่างให้ตัวแปลเติมตอนรันอย่างเดียว
+        //
+        // สองเหตุผล: เปิดฉากในเอดิเตอร์แล้วเห็นหน้าตาจริงว่าอะไรล้นอะไรสั้นไป
+        // และถ้าวันหนึ่งตัวแปลพัง ผู้เล่นจะยังเห็นข้อความ ไม่ใช่ปุ่มเปล่า
+        label.text = Loc.Get(key);
+        EditorUtility.SetDirty(label);
     }
 }

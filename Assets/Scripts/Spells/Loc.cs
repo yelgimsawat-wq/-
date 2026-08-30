@@ -114,6 +114,8 @@ namespace MagicDrawing
             ["settings.language"] = new Entry("ภาษา", "Language"),
             ["settings.volume"] = new Entry("ระดับเสียง", "Volume"),
             ["settings.micDevice"] = new Entry("ไมโครโฟน", "Microphone"),
+            ["settings.micTest"] = new Entry("ทดสอบเสียง", "Test your voice"),
+            ["settings.done"] = new Entry("เสร็จแล้ว", "Done"),
             ["settings.fireThreshold"] = new Entry("ความดังที่ต้องใช้ยิงเวท", "Loudness needed to cast"),
 
             // ---------- วิธีเล่น ----------
@@ -121,6 +123,7 @@ namespace MagicDrawing
             ["tut.next"] = new Entry("ถัดไป", "Next"),
             ["tut.prev"] = new Entry("ก่อนหน้า", "Back"),
             ["tut.page"] = new Entry("หน้า {0}", "Page {0}"),
+            ["tut.startPlaying"] = new Entry("เริ่มเล่น", "Start playing"),
 
             ["tut.draw.title"] = new Entry("1. วาดคาถาด้วยเมาส์", "1. Draw your spell"),
             ["tut.draw.body"] = new Entry(

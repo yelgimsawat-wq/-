@@ -46,6 +46,10 @@ namespace MagicDrawing
 
         private void Refresh()
         {
+            // SetKey อาจถูกเรียกก่อน Awake ตอนนั้น label ยังว่างอยู่
+            // ถ้าไม่หาเองตรงนี้ ข้อความจะไม่เปลี่ยนโดยไม่มีอะไรฟ้อง
+            if (label == null) label = GetComponent<Text>();
+
             if (label == null || string.IsNullOrEmpty(key)) return;
 
             string text = Loc.Get(key);
