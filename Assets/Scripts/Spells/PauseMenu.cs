@@ -54,6 +54,10 @@ namespace MagicDrawing
             Instance = this;
             onlineUi = GetComponentInParent<OnlineUI2D>();
 
+            // หน้าตั้งค่าถูกปิดไว้ Awake ของมันจึงไม่ทำงานตอนเริ่มเกม
+            // ต้องเอาระดับเสียงที่บันทึกไว้มาใช้จากตรงนี้แทน
+            GameSettingsPanel.ApplySavedVolume();
+
             if (root != null) root.SetActive(false);
         }
 

@@ -2377,7 +2377,11 @@ public static class MagicGameSetup
 
         // ---------- ผูกเข้าตัวคุมเมนู ----------
 
-        var pause = root.AddComponent<MagicDrawing.PauseMenu>();
+        // ตัวคุมเมนูต้องอยู่บนแคนวาสที่เปิดอยู่ตลอด ไม่ใช่บน root ที่ถูกปิดไว้
+        //
+        // Unity ไม่รัน Update ของวัตถุที่ถูกปิด ถ้าเอาตัวคุมไปไว้บน root
+        // จะไม่มีใครคอยฟังปุ่ม Esc เลย เมนูจึงไม่มีทางเปิดได้
+        var pause = canvas.gameObject.AddComponent<MagicDrawing.PauseMenu>();
         var pauseSo = new SerializedObject(pause);
         pauseSo.FindProperty("root").objectReferenceValue = root;
         pauseSo.FindProperty("mainPage").objectReferenceValue = mainPage;

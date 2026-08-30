@@ -22,11 +22,22 @@ namespace MagicDrawing
         [SerializeField] private Slider volumeSlider;
         [SerializeField] private Text volumeValue;
 
+        /// <summary>
+        /// เอาระดับเสียงที่บันทึกไว้มาใช้
+        ///
+        /// ต้องให้คนอื่นเรียกได้ เพราะหน้านี้ถูกปิดไว้จนกว่าผู้เล่นจะกดเปิด
+        /// Awake ของตัวเองจึงไม่ทำงานตอนเริ่มเกม ถ้าพึ่ง Awake อย่างเดียว
+        /// คนที่หรี่เสียงไว้จะโดนเสียงดังใส่ทุกครั้งที่เปิดเกม
+        /// จนกว่าจะเปิดหน้าตั้งค่าสักครั้ง
+        /// </summary>
+        public static void ApplySavedVolume()
+        {
+            AudioListener.volume = PlayerPrefs.GetFloat(VolumeKey, 1f);
+        }
+
         private void Awake()
         {
-            // ตั้งเสียงตั้งแต่เริ่ม ไม่ต้องรอให้เปิดหน้านี้ก่อน
-            // ไม่งั้นผู้เล่นที่หรี่เสียงไว้จะโดนเสียงดังใส่ทุกครั้งที่เปิดเกม
-            AudioListener.volume = PlayerPrefs.GetFloat(VolumeKey, 1f);
+            ApplySavedVolume();
         }
 
         private void OnEnable()
