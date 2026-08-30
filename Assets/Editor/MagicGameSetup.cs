@@ -370,22 +370,34 @@ public static class MagicGameSetup
         CreatePauseMenu(canvasGo.transform, ui);
 
         // ---- หน้าเข้าห้อง ----
-        CreateText(joinPanel.transform, "Title", "วงเวทออนไลน์", 46, TitleColor, FontStyle.Bold);
-        CreateText(joinPanel.transform, "Subtitle",
-            "สร้างห้องแล้วส่งรหัสให้เพื่อน หรือใส่รหัสที่ได้รับ", 20, TextColor);
+        // ทุกข้อความในหน้านี้ผูกกับตารางแปล เพราะเป็นหน้าที่มีปุ่มสลับภาษาอยู่
+        // ถ้าสลับเป็นอังกฤษแล้วหน้ายังเป็นไทย ปุ่มนั้นก็แทบไม่มีประโยชน์
+        AddLoc(CreateText(joinPanel.transform, "Title", "", 46, TitleColor, FontStyle.Bold), "menu.title");
+        AddLoc(CreateText(joinPanel.transform, "Subtitle", "", 20, TextColor), "menu.subtitle");
 
-        Button hostButton = CreateButton(joinPanel.transform, "HostButton", "สร้างห้องใหม่");
-        CreateText(joinPanel.transform, "OrLabel", "— หรือ —", 20, TextColor);
-        InputField codeInput = CreateInput(joinPanel.transform, "CodeInput", "ใส่รหัสห้อง");
-        Button joinButton = CreateButton(joinPanel.transform, "JoinButton", "เข้าห้องด้วยรหัส");
-        Button micButton = CreateButton(joinPanel.transform, "MicButton", "ตั้งค่าไมโครโฟน");
+        Button hostButton = CreateLocButton(joinPanel.transform, "HostButton", "menu.host");
+        AddLoc(CreateText(joinPanel.transform, "OrLabel", "", 20, TextColor), "menu.or");
+
+        InputField codeInput = CreateInput(joinPanel.transform, "CodeInput", "");
+        AddLoc(codeInput.placeholder as Text, "menu.codePlaceholder");
+
+        Button joinButton = CreateLocButton(joinPanel.transform, "JoinButton", "menu.join");
+        Button micButton = CreateLocButton(joinPanel.transform, "MicButton", "menu.mic");
 
         // ผูกตรงนี้เลย ไม่ส่งต่อไปเมธอดผูกรวม เพราะเมธอดนั้นรับพารามิเตอร์ยาวมากอยู่แล้ว
         // เพิ่มอีกตัวจะยิ่งอ่านยากและพลาดง่ายเวลาสลับลำดับ
         var micButtonSo = new SerializedObject(ui);
         micButtonSo.FindProperty("openMicButton").objectReferenceValue = micButton;
         micButtonSo.ApplyModifiedPropertiesWithoutUndo();
-        Button editProfileButton = CreateButton(joinPanel.transform, "EditProfileButton", "แก้ไขตัวละคร");
+        Button editProfileButton = CreateLocButton(joinPanel.transform, "EditProfileButton", "menu.editCharacter");
+
+        // ปุ่มสลับภาษาวางไว้ให้เห็นตั้งแต่หน้าแรก ไม่ต้องเข้าห้องแล้วกด Esc ก่อน
+        //
+        // คนที่อ่านไทยไม่ออกต้องเปลี่ยนภาษาได้ตั้งแต่ยังไม่รู้ว่าปุ่มไหนคืออะไร
+        // ถ้าซ่อนไว้ในเมนู Esc เขาจะต้องเดาทางผ่านเมนูภาษาที่อ่านไม่ออกก่อน
+        // ข้อความบนปุ่มตัวคุมเป็นคนใส่ให้เอง ตรงนี้จึงปล่อยว่างไว้
+        CreateButton(joinPanel.transform, "LanguageButton", "")
+            .gameObject.AddComponent<MagicDrawing.LanguageToggleButton>();
 
         // ---- หน้าในห้อง ----
         Text roleText = CreateText(roomPanel.transform, "RoleText", "คุณเป็นเจ้าของห้อง", 26, TitleColor, FontStyle.Bold);

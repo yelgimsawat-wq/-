@@ -88,6 +88,18 @@ namespace MagicDrawing
                 "You are out — press Tab to change who you watch   ({0} left)"),
             ["match.alive"] = new Entry("เหลือ {0} คน", "{0} players left"),
 
+            // ---------- หน้าเข้าห้อง ----------
+            ["menu.title"] = new Entry("วงเวทออนไลน์", "Magic Circles Online"),
+            ["menu.subtitle"] = new Entry(
+                "สร้างห้องแล้วส่งรหัสให้เพื่อน หรือใส่รหัสที่ได้รับ",
+                "Create a room and send the code to a friend, or enter a code you were given"),
+            ["menu.host"] = new Entry("สร้างห้องใหม่", "Create room"),
+            ["menu.or"] = new Entry("— หรือ —", "— or —"),
+            ["menu.codePlaceholder"] = new Entry("ใส่รหัสห้อง", "Enter room code"),
+            ["menu.join"] = new Entry("เข้าห้องด้วยรหัส", "Join with code"),
+            ["menu.mic"] = new Entry("ตั้งค่าไมโครโฟน", "Microphone settings"),
+            ["menu.editCharacter"] = new Entry("แก้ไขตัวละคร", "Edit character"),
+
             // ---------- เมนูหยุดเกม ----------
             ["pause.title"] = new Entry("หยุดเกม", "Paused"),
             ["pause.resume"] = new Entry("เล่นต่อ", "Resume"),
