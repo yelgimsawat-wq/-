@@ -9,11 +9,8 @@ namespace MagicDrawing
     /// ย้ายจาก OnGUI มาเป็น Canvas เพื่อให้แก้ข้อความ ขนาด สี และตำแหน่งได้เอง
     /// จาก Inspector โดยไม่ต้องแตะโค้ด
     ///
-    /// ข้อความเก็บไว้ตรงนี้ ไม่ใช่ใน SpellDrawing เพราะ SpellDrawing อยู่บน
-    /// prefab ตัวละครที่ถูก spawn ตอนเข้าเกม ซึ่งอ้างถึงของในฉากไม่ได้
-    /// และการแก้ข้อความบน prefab ก็หายากกว่ามาสำหรับคนที่จะมาปรับคำ
-    ///
-    /// {0} ในข้อความคือช่องเสียบค่า อย่าลบทิ้งถ้ายังอยากเห็นตัวเลขหรือชื่อธาตุ
+    /// ข้อความจริงอยู่ในตารางแปล (Loc) ไม่ได้อยู่ตรงนี้ เพราะต้องสลับไทย/อังกฤษได้
+    /// แก้คำได้ที่ Loc.cs ที่เดียว ครบทั้งสองภาษา
     /// </summary>
     public class SpellHintLabel : MonoBehaviour
     {
@@ -21,23 +18,6 @@ namespace MagicDrawing
 
         [Tooltip("ข้อความที่จะแสดง ปล่อยว่าง = หาในตัวเองให้")]
         [SerializeField] private Text label;
-
-        [Header("ข้อความแต่ละสถานะ แก้ได้ตามใจ")]
-        [Tooltip("ตอนยังไม่ได้เขียนอะไร")]
-        [TextArea(2, 4)]
-        [SerializeField] private string idleHint =
-            "A/D เดิน  |  W กระโดด  |  ลากเมาส์เขียนคาถา\n" +
-            "วงกลม=น้ำ  สามเหลี่ยม=ไฟ  สี่เหลี่ยม=ดิน  ขีด 4 ขีด=ลม";
-
-        [Tooltip("ตอนกำลังเขียนคาถา  {0} = จำนวนขีด")]
-        [TextArea(2, 4)]
-        [SerializeField] private string composingHint =
-            "เขียนคาถา {0} ขีด  |  Space = ยืนยัน  |  Esc = ล้าง";
-
-        [Tooltip("ตอนเล็งก่อนยิง  {0} = ชื่อธาตุ")]
-        [TextArea(2, 4)]
-        [SerializeField] private string aimingHint =
-            "เวท{0} พร้อมแล้ว  |  เลื่อนเมาส์เล็ง  |  ร่ายให้ดังถึงเส้นขาว แล้วหยุดพูด เวทจะออกเอง  |  Esc = ยกเลิก";
 
         private void Awake()
         {
@@ -50,31 +30,13 @@ namespace MagicDrawing
             if (Instance == this) Instance = null;
         }
 
-        public void ShowIdle() => Write(idleHint);
+        public void ShowIdle() => Write(Loc.Get("hint.idle"));
 
-        public void ShowComposing(int strokeCount) => Write(Format(composingHint, strokeCount));
+        public void ShowComposing(int strokeCount) => Write(Loc.Get("hint.composing", strokeCount));
 
-        public void ShowAiming(string elementName) => Write(Format(aimingHint, elementName));
+        public void ShowAiming(string elementName) => Write(Loc.Get("hint.aiming", elementName));
 
         public void Hide() => Write("");
-
-        /// <summary>
-        /// เสียบค่าลงในข้อความ กันพังถ้าคนแก้ข้อความแล้วเผลอลบ {0} หรือใส่ {1} เกิน
-        /// ถ้ารูปแบบผิดจะคืนข้อความดิบแทนที่จะโยน error กลางเกม
-        /// </summary>
-        private static string Format(string template, object value)
-        {
-            if (string.IsNullOrEmpty(template)) return "";
-
-            try
-            {
-                return string.Format(template, value);
-            }
-            catch (System.FormatException)
-            {
-                return template;
-            }
-        }
 
         private void Write(string message)
         {

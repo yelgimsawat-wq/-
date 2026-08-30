@@ -802,7 +802,7 @@ namespace MagicDrawing
                     break;
 
                 case CastPhase.Aiming:
-                    hint.ShowAiming(pendingSpell.Element.ToThai());
+                    hint.ShowAiming(Loc.ElementName(pendingSpell.Element));
                     break;
 
                 default:

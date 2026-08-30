@@ -220,31 +220,30 @@ namespace MagicDrawing
                     // ถ้าเขียนแค่ "รอผู้เล่นอีก 1 คน" ผู้เล่นจะงงว่าตัวเองเข้าเกมแล้ว
                     // ทำไมยังขึ้นว่ารออยู่ และไม่รู้ว่าเดินยิงซ้อมไปก่อนได้
                     return aliveCount.Value < minPlayersToStart
-                        ? $"รอเพื่อนอีก {minPlayersToStart - aliveCount.Value} คนถึงจะเริ่มนับแพ้ชนะ"
-                          + "   —   ระหว่างนี้ซ้อมวาดเวทได้ตามปกติ"
+                        ? Loc.Get("match.waiting", minPlayersToStart - aliveCount.Value)
                         : "";
 
                 case MatchState.RoundOver:
                     // ต้องบอกทางออกด้วย เพราะเกมไม่เริ่มรอบใหม่เอง
                     // ถ้าบอกแค่ผลแพ้ชนะ ผู้เล่นจะนั่งรอว่าเมื่อไรจะเริ่มใหม่
-                    const string howToLeave = "   —   กดออกจากห้องเพื่อกลับหน้าเมนู";
+                    string howToLeave = Loc.Get("match.howToLeave");
 
                     if (winnerClientId.Value == NoWinner)
-                        return "เสมอ — ไม่มีใครรอด" + howToLeave;
+                        return Loc.Get("match.draw") + howToLeave;
 
                     bool youWon = NetworkManager != null
                                   && winnerClientId.Value == NetworkManager.LocalClientId;
 
-                    return (youWon ? "คุณชนะ!" : "คุณแพ้") + howToLeave;
+                    return Loc.Get(youWon ? "match.win" : "match.lose") + howToLeave;
 
                 default:
                     // ตกรอบแล้วต้องบอกให้ชัด ไม่งั้นผู้เล่นจะงงว่าทำไมคุมอะไรไม่ได้
                     // และต้องบอกปุ่มสลับมุมมองด้วย ไม่มีทางเดาเองได้
                     if (CameraFollow2D.IsSpectating)
-                        return $"คุณตกรอบแล้ว — กด Tab เปลี่ยนคนที่ดู   (เหลือ {aliveCount.Value} คน)";
+                        return Loc.Get("match.eliminated", aliveCount.Value);
 
                     // ระหว่างสู้ บอกแค่จำนวนคนที่ยังรอด ไม่ต้องมีข้อความบังจอ
-                    return aliveCount.Value > 1 ? $"เหลือ {aliveCount.Value} คน" : "";
+                    return aliveCount.Value > 1 ? Loc.Get("match.alive", aliveCount.Value) : "";
             }
         }
     }

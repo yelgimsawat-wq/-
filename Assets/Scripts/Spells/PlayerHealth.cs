@@ -258,7 +258,10 @@ namespace MagicDrawing
             {
                 SpellElement counter = SpellElementExtensions.CounterFor(shield.Element);
                 var label = new Rect(back.x - 25f, back.y + 12f, width + 50f, 20f);
-                GUI.Label(label, $"โล่{shield.Element.ToThai()} (แก้ด้วย{counter.ToThai()})");
+                string shieldText = GameLanguage.Current == Language.Thai
+                    ? $"โล่{Loc.ElementName(shield.Element)} (แก้ด้วย{Loc.ElementName(counter)})"
+                    : $"{Loc.ElementName(shield.Element)} shield (beaten by {Loc.ElementName(counter)})";
+                GUI.Label(label, shieldText);
             }
         }
 
