@@ -2151,7 +2151,7 @@ public static class MagicGameSetup
 
         // ภาษาอยู่บนสุด เพราะถ้าอ่านหัวข้ออื่นไม่ออก ต้องเจอธงก่อนเป็นอย่างแรก
         AddLoc(CreateText(panel.transform, "LanguageCaption", "", 20, TextColor), "settings.language");
-        CreateLanguageRow(panel.transform);
+        CreateLanguageDropdown(panel.transform);
 
         AddLoc(CreateText(panel.transform, "Caption", "", 20, TextColor), "settings.micDevice");
 
@@ -2211,8 +2211,11 @@ public static class MagicGameSetup
     /// กล่องเลือกแบบพื้นฐาน Unity ไม่มีตัวช่วยสร้างจากโค้ด ต้องประกอบเองทั้งชุด
     /// โครงที่ Dropdown ต้องการคือ ป้ายข้อความ ลูกศร และแม่แบบรายการที่กางลงมา
     /// </summary>
-    private static Dropdown CreateDropdown(Transform parent, string name)
+    private static Dropdown CreateDropdown(Transform parent, string name, bool withIcon = false)
     {
+        // เว้นที่ทางซ้ายให้ไอคอน ถ้าไม่มีไอคอนก็ชิดซ้ายตามปกติ
+        float textLeft = withIcon ? 62f : 14f;
+
         var go = new GameObject(name, typeof(Image), typeof(Dropdown));
         go.transform.SetParent(parent, false);
         go.GetComponent<Image>().color = new Color(0.16f, 0.18f, 0.24f);
@@ -2225,9 +2228,11 @@ public static class MagicGameSetup
         Object.DestroyImmediate(label.GetComponent<LayoutElement>());
         var labelRect = label.GetComponent<RectTransform>();
         StretchToParent(labelRect);
-        labelRect.offsetMin = new Vector2(14f, 0f);
+        labelRect.offsetMin = new Vector2(textLeft, 0f);
         labelRect.offsetMax = new Vector2(-30f, 0f);
         label.alignment = TextAnchor.MiddleLeft;
+
+        Image captionIcon = withIcon ? CreateDropdownIcon(go.transform, "Caption Icon") : null;
 
         // แม่แบบรายการที่กางลงมา ต้องปิดไว้ Unity จะเปิดเองตอนกด
         var template = new GameObject("Template", typeof(Image), typeof(ScrollRect));
@@ -2271,9 +2276,11 @@ public static class MagicGameSetup
         Object.DestroyImmediate(itemLabel.GetComponent<LayoutElement>());
         var itemLabelRect = itemLabel.GetComponent<RectTransform>();
         StretchToParent(itemLabelRect);
-        itemLabelRect.offsetMin = new Vector2(14f, 0f);
+        itemLabelRect.offsetMin = new Vector2(textLeft, 0f);
         itemLabelRect.offsetMax = new Vector2(-10f, 0f);
         itemLabel.alignment = TextAnchor.MiddleLeft;
+
+        Image itemIcon = withIcon ? CreateDropdownIcon(item.transform, "Item Icon") : null;
 
         var toggle = item.GetComponent<Toggle>();
         toggle.targetGraphic = itemBackground.GetComponent<Image>();
@@ -2289,6 +2296,12 @@ public static class MagicGameSetup
         dropdown.captionText = label;
         dropdown.itemText = itemLabel;
         dropdown.template = templateRect;
+
+        if (withIcon)
+        {
+            dropdown.captionImage = captionIcon;
+            dropdown.itemImage = itemIcon;
+        }
 
         template.SetActive(false);
 
@@ -2525,16 +2538,24 @@ public static class MagicGameSetup
         EnsureLoc(micPanel.Find("TestCaption"), "settings.micTest");
         EnsureLoc(micPanel.Find("CloseMicButton"), "settings.done");
 
-        if (micPanel.Find("LanguageRow") == null)
-        {
-            Text caption = CreateText(micPanel, "LanguageCaption", "", 20, TextColor);
-            AddLoc(caption, "settings.language");
+        // แถวธงรุ่นเก่าเปลี่ยนมาเป็นกล่องเลือกแล้ว
+        DestroyChild(micPanel, "LanguageRow");
 
-            GameObject row = CreateLanguageRow(micPanel);
+        if (micPanel.Find("LanguageDropdown") == null)
+        {
+            Transform caption = micPanel.Find("LanguageCaption");
+            if (caption == null)
+            {
+                Text made = CreateText(micPanel, "LanguageCaption", "", 20, TextColor);
+                AddLoc(made, "settings.language");
+                caption = made.transform;
+            }
+
+            Dropdown box = CreateLanguageDropdown(micPanel);
 
             // ภาษาต้องอยู่บนสุดถัดจากหัวข้อ คนที่อ่านไม่ออกจะได้เจอธงก่อน
-            caption.transform.SetSiblingIndex(1);
-            row.transform.SetSiblingIndex(2);
+            caption.SetSiblingIndex(1);
+            box.transform.SetSiblingIndex(2);
         }
 
         EditorSceneManager.MarkSceneDirty(scene);
@@ -2609,92 +2630,40 @@ public static class MagicGameSetup
         return button;
     }
 
-    /// <summary>แถวธงสองผืนสำหรับเลือกภาษา</summary>
-    private static GameObject CreateLanguageRow(Transform parent)
+    /// <summary>ช่องไอคอนทางซ้ายของบรรทัดในกล่องเลือก</summary>
+    private static Image CreateDropdownIcon(Transform parent, string name)
     {
-        var row = new GameObject("LanguageRow", typeof(RectTransform));
-        row.transform.SetParent(parent, false);
-
-        var layout = row.AddComponent<HorizontalLayoutGroup>();
-        layout.spacing = 18f;
-        layout.childAlignment = TextAnchor.MiddleCenter;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = true;
-
-        var element = row.AddComponent<LayoutElement>();
-        element.minHeight = 78f;
-        element.preferredHeight = 78f;
-
-        Image thaiFlag, englishFlag;
-        Graphic thaiMark, englishMark;
-
-        Button thai = CreateFlagButton(row.transform, "ThaiButton",
-            IconArtGenerator.ThaiFlag(), out thaiFlag, out thaiMark);
-        Button english = CreateFlagButton(row.transform, "EnglishButton",
-            IconArtGenerator.EnglishFlag(), out englishFlag, out englishMark);
-
-        var picker = row.AddComponent<MagicDrawing.LanguagePicker>();
-        var so = new SerializedObject(picker);
-        so.FindProperty("thaiButton").objectReferenceValue = thai;
-        so.FindProperty("englishButton").objectReferenceValue = english;
-        so.FindProperty("thaiFlag").objectReferenceValue = thaiFlag;
-        so.FindProperty("englishFlag").objectReferenceValue = englishFlag;
-        so.FindProperty("thaiHighlight").objectReferenceValue = thaiMark;
-        so.FindProperty("englishHighlight").objectReferenceValue = englishMark;
-        so.ApplyModifiedPropertiesWithoutUndo();
-
-        return row;
-    }
-
-    /// <summary>ปุ่มธงหนึ่งผืน พร้อมกรอบเน้นที่เปิดปิดได้</summary>
-    private static Button CreateFlagButton(
-        Transform parent, string name, Sprite flagSprite, out Image flag, out Graphic highlight)
-    {
-        Sprite square = AssetDatabase.LoadAssetAtPath<Sprite>(SquareTexturePath);
-
-        var go = new GameObject(name, typeof(Image), typeof(Button));
+        var go = new GameObject(name, typeof(Image));
         go.transform.SetParent(parent, false);
 
-        // พื้นหลังปุ่มต้องเปิดอยู่เสมอ เพราะเป็นตัวรับคลิก
-        // ถ้าเอากรอบเน้นมาเป็นตัวรับคลิกแล้วปิดมันตอนไม่ได้เลือก ปุ่มจะกดไม่ได้
-        var background = go.GetComponent<Image>();
-        background.sprite = square;
-        background.color = new Color(0.16f, 0.18f, 0.24f);
+        var image = go.GetComponent<Image>();
+        image.preserveAspect = true;
 
-        var button = go.GetComponent<Button>();
-        button.targetGraphic = background;
+        // ไอคอนต้องไม่กินคลิก ไม่งั้นกดโดนตรงธงแล้วกล่องไม่กาง
+        image.raycastTarget = false;
 
-        var element = go.AddComponent<LayoutElement>();
-        element.minHeight = 70f;
-        element.preferredHeight = 70f;
+        var rect = go.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 0.5f);
+        rect.anchorMax = new Vector2(0f, 0.5f);
+        rect.pivot = new Vector2(0f, 0.5f);
+        rect.sizeDelta = new Vector2(40f, 27f);
+        rect.anchoredPosition = new Vector2(14f, 0f);
 
-        var markGo = new GameObject("Highlight", typeof(Image));
-        markGo.transform.SetParent(go.transform, false);
-        StretchToParent(markGo.GetComponent<RectTransform>());
+        return image;
+    }
 
-        var mark = markGo.GetComponent<Image>();
-        mark.sprite = square;
-        mark.color = AccentColor;
-        mark.raycastTarget = false;
-        highlight = mark;
+    /// <summary>กล่องเลือกภาษา แต่ละบรรทัดมีธงนำหน้า</summary>
+    private static Dropdown CreateLanguageDropdown(Transform parent)
+    {
+        Dropdown dropdown = CreateDropdown(parent, "LanguageDropdown", withIcon: true);
 
-        var flagGo = new GameObject("Flag", typeof(Image));
-        flagGo.transform.SetParent(go.transform, false);
+        var picker = dropdown.gameObject.AddComponent<MagicDrawing.LanguageDropdown>();
+        var so = new SerializedObject(picker);
+        so.FindProperty("thaiFlag").objectReferenceValue = IconArtGenerator.ThaiFlag();
+        so.FindProperty("englishFlag").objectReferenceValue = IconArtGenerator.EnglishFlag();
+        so.ApplyModifiedPropertiesWithoutUndo();
 
-        flag = flagGo.GetComponent<Image>();
-        flag.sprite = flagSprite;
-        flag.preserveAspect = true;
-        flag.raycastTarget = false;
-
-        // เว้นขอบให้เห็นกรอบเน้นที่อยู่ข้างหลังโผล่ออกมารอบธง
-        var flagRect = flagGo.GetComponent<RectTransform>();
-        StretchToParent(flagRect);
-        flagRect.offsetMin = new Vector2(8f, 8f);
-        flagRect.offsetMax = new Vector2(-8f, -8f);
-
-        return button;
+        return dropdown;
     }
 
     /// <summary>ผูกป้ายเข้ากับกุญแจในตารางแปล</summary>
